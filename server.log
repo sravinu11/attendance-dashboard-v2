@@ -1,0 +1,35 @@
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 134-434-864
+C:\xampp\htdocs\attendance daashboard\app.py:34: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(
+127.0.0.1 - - [12/Jun/2026 12:55:36] "GET /api/widgets HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:37] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:37] "GET /static/dashboard.js HTTP/1.1" 304 -
+C:\xampp\htdocs\attendance daashboard\app.py:34: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(
+127.0.0.1 - - [12/Jun/2026 12:55:38] "GET /api/widgets HTTP/1.1" 200 -
+C:\xampp\htdocs\attendance daashboard\app.py:62: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(row[0], conn)
+127.0.0.1 - - [12/Jun/2026 12:55:39] "GET /api/widget-data/5 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:39] "GET /api/widget-data/2 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:40] "GET /api/widget-data/3 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:40] "GET /api/widget-data/1 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:41] "GET /api/widget-data/4 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:52] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:52] "GET /static/dashboard.js HTTP/1.1" 304 -
+C:\xampp\htdocs\attendance daashboard\app.py:34: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(
+127.0.0.1 - - [12/Jun/2026 12:55:52] "GET /api/widgets HTTP/1.1" 200 -
+C:\xampp\htdocs\attendance daashboard\app.py:62: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(row[0], conn)
+127.0.0.1 - - [12/Jun/2026 12:55:54] "GET /api/widget-data/5 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:54] "GET /api/widget-data/2 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:54] "GET /api/widget-data/3 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:55] "GET /api/widget-data/1 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 12:55:55] "GET /api/widget-data/4 HTTP/1.1" 200 -
