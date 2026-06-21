@@ -349,7 +349,23 @@
         /* ══════════════════════════════════
            PIVOT TABLE
         ══════════════════════════════════ */
-        .pivot-wrapper { overflow-x:auto; border-radius:8px; }
+        .pivot-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+        }
+
+        .pivot-wrapper::-webkit-scrollbar { height: 6px; }
+        .pivot-wrapper::-webkit-scrollbar-track {
+            background: #060e24;
+            border-radius: 3px;
+        }
+        .pivot-wrapper::-webkit-scrollbar-thumb {
+            background: linear-gradient(90deg, var(--accent), var(--cyan));
+            border-radius: 3px;
+        }
+        .pivot-wrapper::-webkit-scrollbar-thumb:hover {
+            background: var(--cyan);
+        }
 
         .pivot-table { border-collapse:collapse; min-width:100%; font-size:12px; }
 
@@ -552,6 +568,13 @@
 
         <div class="filter-group">
             <div class="filter-label">User ID</div>
+            <select id="userid-dropdown" class="filter-control" style="min-width:160px;">
+                <option value="All">All Users</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <div class="filter-label">Search User</div>
             <input type="text" id="user-id-filter" class="filter-control"
                    placeholder="Search user ID…" style="min-width:150px;">
         </div>
@@ -564,6 +587,11 @@
 
     <!-- Dashboard widgets -->
     <div class="row g-4" id="dashboard-container"></div>
+
+    <!-- Footer -->
+    <div style="text-align:center;padding:28px 0 12px;font-size:12px;color:#3a5580;letter-spacing:.3px;">
+        This Dashboard is Designed and Created by <span style="color:#5a7aaa;font-weight:600;">Ravi Sharma</span>
+    </div>
 
 </div>
 

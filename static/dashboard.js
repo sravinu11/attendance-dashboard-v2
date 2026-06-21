@@ -128,31 +128,72 @@ function renderCanvas(body, widgetId) {
 }
 
 function renderPie(body, widgetId, columns, rows, chartType) {
-    const canvas = renderCanvas(body, widgetId);
+    body.innerHTML = '';
     const labelCol = pickLabelColumn(columns, rows);
     const valueCol = pickValueColumn(columns, rows, labelCol);
+    const total = rows.reduce((s, r) => s + (r[valueCol] || 0), 0);
+
+    // Chart wrapper (left: doughnut, right: legend table)
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;align-items:center;gap:20px;flex-wrap:wrap;';
+
+    // Canvas container
+    const canvasWrap = document.createElement('div');
+    canvasWrap.style.cssText = 'position:relative;width:240px;height:240px;flex-shrink:0;';
+    const canvas = document.createElement('canvas');
+    canvas.id = `chart-${widgetId}`;
+    canvasWrap.appendChild(canvas);
+    wrapper.appendChild(canvasWrap);
+
+    // Legend table
+    const legendDiv = document.createElement('div');
+    legendDiv.style.cssText = 'flex:1;min-width:200px;';
+    let legendHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+    legendHtml += '<tr style="border-bottom:1px solid rgba(80,130,255,.15);">' +
+        '<th style="text-align:left;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">NAME</th>' +
+        '<th style="text-align:right;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">COUNT</th>' +
+        '<th style="text-align:right;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">%</th></tr>';
+    rows.forEach((r, i) => {
+        const val = r[valueCol] || 0;
+        const pct = total ? ((val / total) * 100).toFixed(1) : '0.0';
+        const color = PALETTE[i % PALETTE.length];
+        legendHtml += `<tr style="border-bottom:1px solid rgba(80,130,255,.06);">` +
+            `<td style="padding:5px 8px;color:#c8dcf8;white-space:nowrap;">` +
+            `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${color};margin-right:8px;vertical-align:middle;"></span>${r[labelCol]}</td>` +
+            `<td style="text-align:right;padding:5px 8px;color:#e8f0ff;font-weight:600;">${val.toLocaleString()}</td>` +
+            `<td style="text-align:right;padding:5px 8px;color:#ffd666;font-weight:700;">${pct}%</td></tr>`;
+    });
+    legendHtml += '</table>';
+    legendDiv.innerHTML = legendHtml;
+    wrapper.appendChild(legendDiv);
+
+    body.appendChild(wrapper);
 
     destroyChart(widgetId);
     charts[widgetId] = new Chart(canvas, {
-        type: chartType === 'doughnut' ? 'doughnut' : 'pie',
+        type: 'doughnut',
         data: {
             labels: rows.map(r => r[labelCol]),
             datasets: [{
                 data: rows.map(r => r[valueCol]),
                 backgroundColor: PALETTE,
-                borderColor: '#0b1830',
-                borderWidth: 3
+                borderColor: '#060e24',
+                borderWidth: 2
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            cutout: '55%',
             plugins: {
-                legend: { position: 'bottom', labels: { padding: 16, boxWidth: 12 } },
+                legend: { display: false },
                 datalabels: {
                     color: '#fff',
-                    font: { weight: 'bold', size: 12 },
-                    formatter: formatLabelValue
+                    font: { weight: 'bold', size: 11 },
+                    formatter: (value) => {
+                        const pct = total ? ((value / total) * 100).toFixed(1) : '0';
+                        return pct >= 5 ? pct + '%' : '';
+                    }
                 }
             }
         }
@@ -341,6 +382,105 @@ function renderPivotRegion(body, rows) {
     body.innerHTML = html;
 }
 
+const TIMING_ORDER = ['Before 10 AM','10 AM To 12 Noon','12 Noon To 2 PM','After 2 PM','Not Check in'];
+
+function renderPivotTiming(body, rows) {
+    if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:20px">No data</div>'; return; }
+
+    const dateSet = new Set();
+    const timingSet = new Set();
+    rows.forEach(r => { dateSet.add(r.date); timingSet.add(r.timing); });
+
+    const dates = Array.from(dateSet).sort();
+    const timings = TIMING_ORDER.filter(t => timingSet.has(t));
+    timingSet.forEach(t => { if (!TIMING_ORDER.includes(t)) timings.push(t); });
+
+    const map = {};
+    rows.forEach(r => { map[`${r.timing}__${r.date}`] = r.cnt; });
+
+    let html = '<div class="pivot-wrapper"><table class="pivot-table"><thead><tr>';
+    html += '<th class="row-header">TIMING</th>';
+    dates.forEach(d => { html += `<th>${formatPivotDate(d)}</th>`; });
+    html += '</tr></thead><tbody>';
+
+    const colTotals = {};
+    dates.forEach(d => colTotals[d] = 0);
+
+    timings.forEach(timing => {
+        html += `<tr><td class="row-label">${timing}</td>`;
+        dates.forEach(d => {
+            const v = map[`${timing}__${d}`] || 0;
+            colTotals[d] += v;
+            html += `<td>${v > 0 ? v.toLocaleString() : ''}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    html += '<tr class="total-row"><td class="row-label">Total</td>';
+    dates.forEach(d => { html += `<td>${colTotals[d].toLocaleString()}</td>`; });
+    html += '</tr></tbody></table></div>';
+
+    body.innerHTML = html;
+}
+
+const IMPACT_ORDER = ['4.5-9 Hrs (Half Day)','9 Hrs (Full Day)','No Check-Out (LOP)','Not Check in'];
+
+function renderPivotSalary(body, rows) {
+    if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:20px">No data</div>'; return; }
+
+    const dateSet = new Set();
+    const impactSet = new Set();
+    rows.forEach(r => { dateSet.add(r.date); impactSet.add(r.impact); });
+
+    const dates = Array.from(dateSet).sort();
+    const impacts = IMPACT_ORDER.filter(t => impactSet.has(t));
+    impactSet.forEach(t => { if (!IMPACT_ORDER.includes(t)) impacts.push(t); });
+
+    const map = {};
+    rows.forEach(r => { map[`${r.impact}__${r.date}`] = r.cnt; });
+
+    // Compute date totals for percentage calculation
+    const dateTotals = {};
+    dates.forEach(d => {
+        let sum = 0;
+        impacts.forEach(imp => { sum += map[`${imp}__${d}`] || 0; });
+        dateTotals[d] = sum;
+    });
+
+    let html = '<div class="pivot-wrapper"><table class="pivot-table"><thead>';
+    // Header row 1: DATE spans
+    html += '<tr><th class="row-header" rowspan="2">Salary Impact</th>';
+    dates.forEach(d => { html += `<th colspan="2">${formatPivotDate(d)}</th>`; });
+    html += '</tr>';
+    // Header row 2: sub-columns
+    html += '<tr>';
+    dates.forEach(() => {
+        html += '<th>Salary Impact</th><th>% of Salary Impact</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    impacts.forEach(impact => {
+        html += `<tr><td class="row-label">${impact}</td>`;
+        dates.forEach(d => {
+            const v = map[`${impact}__${d}`] || 0;
+            const total = dateTotals[d] || 1;
+            const pct = Math.round((v / total) * 100);
+            html += `<td>${v > 0 ? v.toLocaleString() : ''}</td>`;
+            html += `<td>${v > 0 ? pct + '%' : ''}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    // Total row
+    html += '<tr class="total-row"><td class="row-label">Total</td>';
+    dates.forEach(d => {
+        html += `<td>${dateTotals[d].toLocaleString()}</td><td>100%</td>`;
+    });
+    html += '</tr></tbody></table></div>';
+
+    body.innerHTML = html;
+}
+
 const ATTENDANCE_TREND_WIDGET_ID = 3;
 
 function renderAttendanceSummary(body, rows) {
@@ -381,12 +521,15 @@ function renderWidgetBody(widget, columns, rows) {
         case 'line':  renderLine(body, widget.id, columns, rows); break;
         case 'pivot':        renderPivot(body, rows); break;
         case 'pivot_region': renderPivotRegion(body, rows); break;
+        case 'pivot_timing': renderPivotTiming(body, rows); break;
+        case 'pivot_salary': renderPivotSalary(body, rows); break;
         default:      renderPie(body, widget.id, columns, rows, widget.chart_type); break;
     }
 }
 
 // ── Filter getters ───────────────────────────────────────
 let currentWidgets = [];
+let cascading = false; // prevent re-entrancy during cascade update
 
 function getSelectedRegion() {
     return document.getElementById('region-filter')?.value || 'All';
@@ -434,198 +577,229 @@ async function loadWidget(widget) {
 
 function widgetColumnClass(chartType) {
     if (chartType === 'kpi')   return 'col-md-3';
-    if (chartType === 'pivot' || chartType === 'pivot_region') return 'col-12';
+    if (chartType === 'pivot' || chartType === 'pivot_region' || chartType === 'pivot_timing' || chartType === 'pivot_salary') return 'col-12';
     if (chartType === 'table') return 'col-md-6';
     return 'col-md-6';
 }
 
 function reloadWidgetData() {
     currentWidgets.forEach(w => {
-        if (w.id === EMPLOYEE_WIDGET_ID) return; // handled by refreshEmployeeWidget
+        if (w.id === EMPLOYEE_WIDGET_ID) return;
         loadWidget(w);
     });
     refreshEmployeeWidget();
 }
 
-// ── Multi-select dropdown builder ────────────────────────
-function buildMultiDropdown({ apiUrl, menuId, btnId, allLabel, optionClass }) {
-    return fetch(apiUrl)
-        .then(r => r.json())
-        .then(values => {
-            const menu = document.getElementById(menuId);
-            const btn  = document.getElementById(btnId);
-            if (!menu || !btn) return;
+// ══════════════════════════════════════════════════════════
+// CASCADING FILTER SYSTEM
+// When any filter changes → fetch available options for
+// all OTHER filters from /api/filter-options, then update
+// the dropdown options accordingly.
+// ══════════════════════════════════════════════════════════
 
-            menu.innerHTML = `
-                <li class="px-2">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="${menuId}-all" checked>
-                        <label class="form-check-label" for="${menuId}-all">${allLabel}</label>
-                    </div>
-                </li>
-                <li><hr></li>
-                ${values.map((v, i) => `
-                <li class="px-2">
-                    <div class="form-check">
-                        <input class="form-check-input ${optionClass}" type="checkbox" id="${menuId}-${i}" value="${v}">
-                        <label class="form-check-label" for="${menuId}-${i}">${v}</label>
-                    </div>
-                </li>`).join('')}
-            `;
-
-            const allCb = document.getElementById(`${menuId}-all`);
-            const opts  = Array.from(menu.querySelectorAll(`.${optionClass}`));
-
-            function updateLabel() {
-                const sel = opts.filter(c => c.checked);
-                btn.childNodes[0].textContent = sel.length === 0
-                    ? allLabel
-                    : sel.length === 1 ? sel[0].value : `${sel.length} Selected`;
-            }
-
-            allCb.addEventListener('change', () => {
-                if (allCb.checked) opts.forEach(c => c.checked = false);
-                updateLabel();
-                reloadWidgetData();
-            });
-
-            opts.forEach(cb => {
-                cb.addEventListener('change', () => {
-                    if (cb.checked) allCb.checked = false;
-                    else if (opts.every(c => !c.checked)) allCb.checked = true;
-                    updateLabel();
-                    reloadWidgetData();
-                });
-            });
-        });
-}
-
-// ── Region filter ────────────────────────────────────────
-async function loadRegions() {
-    const sel = document.getElementById('region-filter');
-    if (!sel) return;
-    const regions = await (await fetch('/api/regions')).json();
-    regions.forEach(r => {
-        const o = document.createElement('option');
-        o.value = o.textContent = r;
-        sel.appendChild(o);
-    });
-    sel.addEventListener('change', reloadWidgetData);
-}
-
-// ── ASE ↔ ZSE cascading filters ─────────────────────────
-let zseAseMap = []; // [{zse, ase}, ...]
-
-function populateSelect(sel, values, allLabel) {
+function populateSelect(sel, values) {
     const current = sel.value;
-    // keep only the "All" option then re-add
     while (sel.options.length > 1) sel.remove(1);
     values.forEach(v => {
         const o = document.createElement('option');
         o.value = o.textContent = v;
         sel.appendChild(o);
     });
-    // restore selection if it still exists in new list
     if (values.includes(current)) sel.value = current;
     else sel.value = 'All';
 }
 
-async function loadZseAseFilters() {
-    zseAseMap = await (await fetch('/api/zse-ase-map')).json();
+function updateMultiDropdown(menuId, btnId, allLabel, optionClass, availableValues, reset) {
+    const menu = document.getElementById(menuId);
+    const btn  = document.getElementById(btnId);
+    if (!menu || !btn) return;
 
-    const zseSel  = document.getElementById('zse-filter');
-    const aseSel  = document.getElementById('ase-filter');
-    if (!zseSel || !aseSel) return;
+    const currentChecked = reset ? new Set() : new Set(getCheckedValues(menuId));
 
-    // Populate ZSE with all unique ZSEs
-    const allZses = [...new Set(zseAseMap.map(r => r.zse))].sort();
-    populateSelect(zseSel, allZses, 'All ZSEs');
+    menu.innerHTML = `
+        <li class="px-2">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="${menuId}-all" ${currentChecked.size === 0 ? 'checked' : ''}>
+                <label class="form-check-label" for="${menuId}-all">${allLabel}</label>
+            </div>
+        </li>
+        <li><hr></li>
+        ${availableValues.map((v, i) => `
+        <li class="px-2">
+            <div class="form-check">
+                <input class="form-check-input ${optionClass} multi-option" type="checkbox"
+                       id="${menuId}-${i}" value="${v}" ${currentChecked.has(v) ? 'checked' : ''}>
+                <label class="form-check-label" for="${menuId}-${i}">${v}</label>
+            </div>
+        </li>`).join('')}
+    `;
 
-    // Populate ASE with all unique ASEs
-    const allAses = [...new Set(zseAseMap.map(r => r.ase))].sort();
-    populateSelect(aseSel, allAses, 'All ASEs');
+    const allCb = document.getElementById(`${menuId}-all`);
+    const opts  = Array.from(menu.querySelectorAll(`.${optionClass}`));
 
-    // ZSE change → filter ASE list, reload widgets
-    zseSel.addEventListener('change', () => {
-        const zse = zseSel.value;
-        if (zse && zse !== 'All') {
-            const filtered = zseAseMap
-                .filter(r => r.zse === zse)
-                .map(r => r.ase)
-                .sort();
-            populateSelect(aseSel, filtered, 'All ASEs');
-        } else {
-            populateSelect(aseSel, allAses, 'All ASEs');
-        }
-        reloadWidgetData();
+    // Uncheck "all" if any option is checked
+    const anyChecked = opts.some(c => c.checked);
+    if (anyChecked) allCb.checked = false;
+    else allCb.checked = true;
+
+    function updateLabel() {
+        const sel = opts.filter(c => c.checked);
+        btn.childNodes[0].textContent = sel.length === 0
+            ? allLabel
+            : sel.length === 1 ? sel[0].value : `${sel.length} Selected`;
+    }
+
+    updateLabel();
+
+    allCb.addEventListener('change', () => {
+        if (allCb.checked) opts.forEach(c => c.checked = false);
+        updateLabel();
+        onFilterChange();
     });
 
-    // ASE change → auto-select matching ZSE, reload widgets
-    aseSel.addEventListener('change', () => {
-        const ase = aseSel.value;
-        if (ase && ase !== 'All') {
-            const match = zseAseMap.find(r => r.ase === ase);
-            if (match) zseSel.value = match.zse;
-        } else {
-            zseSel.value = 'All';
-            populateSelect(aseSel, allAses, 'All ASEs');
-        }
-        reloadWidgetData();
+    opts.forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) allCb.checked = false;
+            else if (opts.every(c => !c.checked)) allCb.checked = true;
+            updateLabel();
+            onFilterChange();
+        });
     });
 }
 
-// ── User ID filter (debounced) ───────────────────────────
-function initUserIdFilter() {
-    const input = document.getElementById('user-id-filter');
-    if (!input) return;
-    let timer;
-    input.addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-            reloadWidgetData();
-            refreshEmployeeWidget();
-        }, 600);
-    });
+async function refreshFilterOptions() {
+    const params = buildParams();
+    const opts = await (await fetch(`/api/filter-options?${params.toString()}`)).json();
+
+    cascading = true;
+
+    // Update Region select
+    populateSelect(document.getElementById('region-filter'), opts.regions);
+
+    // Update ASE select
+    populateSelect(document.getElementById('ase-filter'), opts.ases);
+
+    // Update ZSE select
+    populateSelect(document.getElementById('zse-filter'), opts.zses);
+
+    // Update User ID dropdown
+    populateSelect(document.getElementById('userid-dropdown'), opts.user_ids);
+
+    // Update multi-select dropdowns
+    updateMultiDropdown('type-filter-menu',    'type-filter-btn',    'All Types',    'type-option',    opts.types);
+    updateMultiDropdown('channel-filter-menu', 'channel-filter-btn', 'All Channels', 'channel-option', opts.channels);
+    updateMultiDropdown('atype-filter-menu',   'atype-filter-btn',   'All Types',    'atype-option',   opts.atypes);
+
+    cascading = false;
 }
 
-// ── Date filters ─────────────────────────────────────────
-function initDateFilters() {
+function onFilterChange() {
+    if (cascading) return;
+    refreshFilterOptions();
+    reloadWidgetData();
+}
+
+// ── Initial filter setup ────────────────────────────────
+async function initAllFilters() {
+    // Load initial full options
+    const opts = await (await fetch('/api/filter-options')).json();
+
+    // Region
+    const regionSel = document.getElementById('region-filter');
+    opts.regions.forEach(r => {
+        const o = document.createElement('option');
+        o.value = o.textContent = r;
+        regionSel.appendChild(o);
+    });
+    regionSel.addEventListener('change', onFilterChange);
+
+    // ASE
+    const aseSel = document.getElementById('ase-filter');
+    opts.ases.forEach(a => {
+        const o = document.createElement('option');
+        o.value = o.textContent = a;
+        aseSel.appendChild(o);
+    });
+    aseSel.addEventListener('change', onFilterChange);
+
+    // ZSE
+    const zseSel = document.getElementById('zse-filter');
+    opts.zses.forEach(z => {
+        const o = document.createElement('option');
+        o.value = o.textContent = z;
+        zseSel.appendChild(o);
+    });
+    zseSel.addEventListener('change', onFilterChange);
+
+    // Multi-select dropdowns (Type, Channel, Attendance Type)
+    updateMultiDropdown('type-filter-menu',    'type-filter-btn',    'All Types',    'type-option',    opts.types);
+    updateMultiDropdown('channel-filter-menu', 'channel-filter-btn', 'All Channels', 'channel-option', opts.channels);
+    updateMultiDropdown('atype-filter-menu',   'atype-filter-btn',   'All Types',    'atype-option',   opts.atypes);
+
+    // Date filters
     ['date-from', 'date-to'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', reloadWidgetData);
+        document.getElementById(id)?.addEventListener('change', onFilterChange);
     });
+
+    // User ID dropdown
+    const uidDropdown = document.getElementById('userid-dropdown');
+    opts.user_ids.forEach(u => {
+        const o = document.createElement('option');
+        o.value = o.textContent = u;
+        uidDropdown.appendChild(o);
+    });
+    uidDropdown.addEventListener('change', () => {
+        const val = uidDropdown.value;
+        const uidInput = document.getElementById('user-id-filter');
+        if (val && val !== 'All') {
+            uidInput.value = val;
+        } else {
+            uidInput.value = '';
+        }
+        onFilterChange();
+        refreshEmployeeWidget();
+    });
+
+    // User ID search (debounced)
+    const uidInput = document.getElementById('user-id-filter');
+    if (uidInput) {
+        let timer;
+        uidInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                uidDropdown.value = 'All';
+                onFilterChange();
+                refreshEmployeeWidget();
+            }, 600);
+        });
+    }
 }
 
 // ── Clear all ────────────────────────────────────────────
-function clearAllFilters() {
-    // Close any open dropdowns
+async function clearAllFilters() {
     document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
         const btn = menu.previousElementSibling;
         if (btn) bootstrap.Dropdown.getOrCreateInstance(btn).hide();
     });
 
     document.getElementById('region-filter').value = 'All';
-
-    ['type-filter-menu', 'channel-filter-menu', 'atype-filter-menu'].forEach(menuId => {
-        const menu = document.getElementById(menuId);
-        if (!menu) return;
-        const allCb = menu.querySelector('input[type=checkbox]:not(.multi-option)');
-        if (allCb) allCb.checked = true;
-        menu.querySelectorAll('.multi-option').forEach(cb => cb.checked = false);
-    });
-
-    document.getElementById('type-filter-btn').childNodes[0].textContent = 'All Types';
-    document.getElementById('channel-filter-btn').childNodes[0].textContent = 'All Channels';
-    document.getElementById('atype-filter-btn').childNodes[0].textContent = 'All Types';
-
-    // Reset ZSE & ASE — restore full ASE list
+    document.getElementById('ase-filter').value = 'All';
     document.getElementById('zse-filter').value = 'All';
-    const aseSel = document.getElementById('ase-filter');
-    const allAses = [...new Set(zseAseMap.map(r => r.ase))].sort();
-    populateSelect(aseSel, allAses, 'All ASEs');
-    aseSel.value = 'All';
+    document.getElementById('userid-dropdown').value = 'All';
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value = '';
     document.getElementById('user-id-filter').value = '';
+
+    // Reload full options (no filters applied)
+    const opts = await (await fetch('/api/filter-options')).json();
+
+    populateSelect(document.getElementById('region-filter'), opts.regions);
+    populateSelect(document.getElementById('ase-filter'), opts.ases);
+    populateSelect(document.getElementById('zse-filter'), opts.zses);
+    populateSelect(document.getElementById('userid-dropdown'), opts.user_ids);
+    updateMultiDropdown('type-filter-menu',    'type-filter-btn',    'All Types',    'type-option',    opts.types,    true);
+    updateMultiDropdown('channel-filter-menu', 'channel-filter-btn', 'All Channels', 'channel-option', opts.channels, true);
+    updateMultiDropdown('atype-filter-menu',   'atype-filter-btn',   'All Types',    'atype-option',   opts.atypes,   true);
 
     reloadWidgetData();
     refreshEmployeeWidget();
@@ -691,11 +865,5 @@ async function loadDashboard() {
 }
 
 // ── Init ─────────────────────────────────────────────────
-loadRegions();
-buildMultiDropdown({ apiUrl: '/api/types',                menuId: 'type-filter-menu',    btnId: 'type-filter-btn',    allLabel: 'All Types',    optionClass: 'type-option' });
-buildMultiDropdown({ apiUrl: '/api/channels',             menuId: 'channel-filter-menu', btnId: 'channel-filter-btn', allLabel: 'All Channels', optionClass: 'channel-option' });
-buildMultiDropdown({ apiUrl: '/api/attendance_types',     menuId: 'atype-filter-menu',   btnId: 'atype-filter-btn',   allLabel: 'All Types',    optionClass: 'atype-option' });
-loadZseAseFilters();
-initDateFilters();
-initUserIdFilter();
+initAllFilters();
 loadDashboard();

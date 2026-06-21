@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, abort, request, send_from_directory
+from flask import Flask, render_template, jsonify, abort, request, send_from_directory, session, redirect, url_for
 from dotenv import load_dotenv
 from psycopg2.extensions import adapt
 import psycopg2
@@ -9,8 +9,10 @@ import os
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+DASHBOARD_PASSWORD = "Quessdashboardlive"
 
 
 def get_conn():
@@ -33,8 +35,27 @@ def assets(filename):
     return send_from_directory(os.path.join(app.root_path, "assets"), filename)
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = ""
+    if request.method == "POST":
+        if request.form.get("password") == DASHBOARD_PASSWORD:
+            session["authenticated"] = True
+            return redirect(url_for("dashboard"))
+        error = "Incorrect password. Please try again."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.pop("authenticated", None)
+    return redirect(url_for("login"))
+
+
 @app.route("/")
 def dashboard():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
     return render_template("dashboard.html")
 
 
@@ -129,6 +150,75 @@ def get_attendance_types():
     )
     conn.close()
     return jsonify(df["atype"].tolist())
+
+
+@app.route("/api/filter-options")
+def get_filter_options():
+    conn = get_conn()
+
+    where = "WHERE 1=1"
+
+    region = request.args.get("region")
+    if region and region != "All":
+        where += f" AND region = {safe_literal(region)}"
+
+    types = [t for t in request.args.getlist("type") if t]
+    if types:
+        literals = ", ".join(safe_literal(t.lower().strip()) for t in types)
+        where += f" AND lower(trim(type)) IN ({literals})"
+
+    channels = [c for c in request.args.getlist("channel") if c]
+    if channels:
+        literals = ", ".join(safe_literal(c.strip()) for c in channels)
+        where += f" AND trim(channel) IN ({literals})"
+
+    ase = request.args.get("ase")
+    if ase and ase != "All":
+        where += f" AND trim(ase) = {safe_literal(ase.strip())}"
+
+    zse = request.args.get("zse")
+    if zse and zse != "All":
+        where += f" AND trim(zse) = {safe_literal(zse.strip())}"
+
+    atypes = [a for a in request.args.getlist("atype") if a]
+    if atypes:
+        literals = ", ".join(safe_literal(a.strip()) for a in atypes)
+        where += f" AND trim(attendance_type) IN ({literals})"
+
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    if date_from:
+        where += f" AND attendance_date::date >= {safe_literal(date_from)}"
+    if date_to:
+        where += f" AND attendance_date::date <= {safe_literal(date_to)}"
+
+    sql = f"""
+        SELECT
+            COALESCE(array_agg(DISTINCT region ORDER BY region) FILTER (WHERE region IS NOT NULL), ARRAY[]::text[]) AS regions,
+            COALESCE(array_agg(DISTINCT trim(type) ORDER BY trim(type)) FILTER (WHERE type IS NOT NULL AND trim(type) != ''), ARRAY[]::text[]) AS types,
+            COALESCE(array_agg(DISTINCT trim(channel) ORDER BY trim(channel)) FILTER (WHERE channel IS NOT NULL AND trim(channel) != ''), ARRAY[]::text[]) AS channels,
+            COALESCE(array_agg(DISTINCT trim(ase) ORDER BY trim(ase)) FILTER (WHERE ase IS NOT NULL AND trim(ase) != ''), ARRAY[]::text[]) AS ases,
+            COALESCE(array_agg(DISTINCT trim(zse) ORDER BY trim(zse)) FILTER (WHERE zse IS NOT NULL AND trim(zse) != ''), ARRAY[]::text[]) AS zses,
+            COALESCE(array_agg(DISTINCT trim(attendance_type) ORDER BY trim(attendance_type)) FILTER (WHERE attendance_type IS NOT NULL AND trim(attendance_type) != ''), ARRAY[]::text[]) AS atypes,
+            COALESCE(array_agg(DISTINCT CAST(user_id AS TEXT) ORDER BY CAST(user_id AS TEXT)) FILTER (WHERE user_id IS NOT NULL), ARRAY[]::text[]) AS user_ids
+        FROM samsungdashneon
+        {where}
+    """
+
+    cur = conn.cursor()
+    cur.execute(sql)
+    row = cur.fetchone()
+    conn.close()
+
+    return jsonify({
+        "regions": row[0] or [],
+        "types": row[1] or [],
+        "channels": row[2] or [],
+        "ases": row[3] or [],
+        "zses": row[4] or [],
+        "atypes": row[5] or [],
+        "user_ids": row[6] or [],
+    })
 
 
 @app.route("/api/widget-data/<int:widget_id>")

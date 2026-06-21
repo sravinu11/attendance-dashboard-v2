@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login · Online Attendance Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: radial-gradient(ellipse at 30% 20%, #0d1a40 0%, #04071a 55%),
+                        radial-gradient(ellipse at 70% 80%, #0a1535 0%, #04071a 60%);
+            background-attachment: fixed;
+            font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #e8f0ff;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 0 20px;
+        }
+
+        /* ── Logo Section ── */
+        .logo-section {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .logo-divider {
+            width: 1px;
+            height: 40px;
+            background: rgba(148,163,184,.3);
+        }
+
+        .logo-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #e8f0ff;
+            letter-spacing: .3px;
+        }
+
+        .logo-subtitle {
+            font-size: 12px;
+            color: #5a7aaa;
+            margin-top: 6px;
+            letter-spacing: .5px;
+        }
+
+        /* ── Login Card ── */
+        .login-card {
+            background: linear-gradient(160deg, #0e1d4a 0%, #09122e 50%, #060e24 100%);
+            border: 1px solid rgba(80,130,255,.18);
+            border-radius: 20px;
+            padding: 40px 36px;
+            position: relative;
+            overflow: hidden;
+            box-shadow:
+                0 2px 0 rgba(255,255,255,.04) inset,
+                0 -2px 0 rgba(0,0,0,.4) inset,
+                0 8px 32px rgba(0,0,0,.55),
+                0 24px 60px rgba(0,0,0,.35),
+                0 0 40px rgba(20,60,180,.08);
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 10%; right: 10%; height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(46,232,255,.5) 40%,
+                        rgba(100,180,255,.6) 60%, transparent 100%);
+            border-radius: 50%;
+        }
+
+        .login-card::after {
+            content: '';
+            position: absolute;
+            top: -40px; left: -40px;
+            width: 160px; height: 160px;
+            background: radial-gradient(circle, rgba(46,232,255,.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .login-heading {
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 6px;
+            color: #f1f5f9;
+        }
+
+        .login-subtext {
+            font-size: 13px;
+            color: #5a7aaa;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        /* ── Lock icon ── */
+        .lock-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, rgba(46,232,255,.12), rgba(58,123,213,.15));
+            border: 1px solid rgba(46,232,255,.25);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        /* ── Form ── */
+        .form-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .9px;
+            color: #2ee8ff;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: rgba(4,7,26,.9);
+            color: #e8f0ff;
+            border: 1px solid rgba(58,123,213,.28);
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: border-color .15s, box-shadow .15s;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: #2ee8ff;
+            box-shadow: 0 0 0 3px rgba(46,232,255,.15), 0 0 14px rgba(46,232,255,.08);
+        }
+
+        .form-input::placeholder {
+            color: #3a5580;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            margin-top: 22px;
+            background: linear-gradient(135deg, #3a7bd5 0%, #2ee8ff 150%);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: .6px;
+            text-transform: uppercase;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all .2s;
+            box-shadow: 0 4px 18px rgba(58,123,213,.35);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(46,232,255,.3);
+            background: linear-gradient(135deg, #4a8be5 0%, #3ef8ff 150%);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-msg {
+            background: rgba(239,68,68,.12);
+            border: 1px solid rgba(239,68,68,.35);
+            color: #ff8080;
+            font-size: 13px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #3a5580;
+            letter-spacing: .3px;
+        }
+
+        .footer span {
+            color: #5a7aaa;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+
+    <!-- Logos -->
+    <div class="logo-section">
+        <div class="logo-row">
+            <img src="/assets/hamara_hr.png" alt="Hamara HR" style="height:48px;width:auto;">
+            <div class="logo-divider"></div>
+            <img src="/assets/quess-logo.png" alt="Quess" style="height:44px;width:auto;">
+        </div>
+        <div class="logo-title">Online Attendance Dashboard</div>
+        <div class="logo-subtitle">Real-time Workforce Analytics · Samsung</div>
+    </div>
+
+    <!-- Login Card -->
+    <div class="login-card">
+
+        <div class="lock-icon">&#128274;</div>
+
+        <div class="login-heading">Welcome Back</div>
+        <div class="login-subtext">Enter the dashboard password to continue</div>
+
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/login">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-input"
+                   placeholder="Enter dashboard password…" autofocus required>
+            <button type="submit" class="login-btn">Access Dashboard</button>
+        </form>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        This Dashboard is Designed and Created by <span>Ravi Sharma</span>
+    </div>
+
+</div>
+
+</body>
+</html>
