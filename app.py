@@ -13,6 +13,7 @@ app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 DASHBOARD_PASSWORD = "Quessdashboardlive"
+ADMIN_PASSWORD = "ravisharmaisadmin"
 
 
 def get_conn():
@@ -295,6 +296,221 @@ def get_widget_data(widget_id):
     user_id = request.args.get("user_id")
     if user_id and user_id.strip():
         sql = sql.replace("{user_filter}", f"AND CAST(user_id AS TEXT) ILIKE {safe_literal('%' + user_id.strip() + '%')}")
+    else:
+        sql = sql.replace("{user_filter}", "")
+
+    df = pd.read_sql(sql, conn)
+    conn.close()
+    return jsonify(df_to_payload(df))
+
+
+# ══════════════════════════════════════════
+# ADMIN AUTH FOR EXPORT
+# ══════════════════════════════════════════
+
+@app.route("/api/verify-admin", methods=["POST"])
+def verify_admin():
+    data = request.get_json()
+    if data.get("password") == ADMIN_PASSWORD:
+        return jsonify({"success": True})
+    return jsonify({"success": False})
+
+
+# ══════════════════════════════════════════
+# EMAIL EXPORT
+# ══════════════════════════════════════════
+
+@app.route("/api/send-email", methods=["POST"])
+def send_email():
+    import base64
+    import tempfile
+
+    data = request.get_json()
+    to_email = data.get("to", "")
+    subject = data.get("subject", "Dashboard Report")
+    body_text = data.get("body", "")
+    image_data = data.get("image", "")
+
+    try:
+        import win32com.client
+        import pythoncom
+        pythoncom.CoInitialize()
+
+        # Save image to temp file
+        img_path = os.path.join(tempfile.gettempdir(), "dashboard_snapshot.png")
+        if image_data and "," in image_data:
+            img_bytes = base64.b64decode(image_data.split(",")[1])
+            with open(img_path, "wb") as f:
+                f.write(img_bytes)
+
+        outlook = win32com.client.Dispatch("Outlook.Application")
+        mail = outlook.CreateItem(0)
+        mail.To = to_email
+        mail.Subject = subject
+
+        if os.path.exists(img_path):
+            attachment = mail.Attachments.Add(img_path)
+            cid = "dashboard_img"
+            attachment.PropertyAccessor.SetProperty(
+                "http://schemas.microsoft.com/mapi/proptag/0x3712001F", cid
+            )
+
+        mail.HTMLBody = f"""
+        <html><body style="font-family:Segoe UI,Arial,sans-serif;color:#333;">
+            <p>{body_text.replace(chr(10), '<br>')}</p>
+            <br>
+            <p><strong>Dashboard Snapshot:</strong></p>
+            <img src="cid:dashboard_img" style="max-width:100%;border:1px solid #ddd;border-radius:8px;">
+            <br><br>
+        </body></html>
+        """
+
+        mail.Display()
+        pythoncom.CoUninitialize()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ══════════════════════════════════════════
+# NON SEC DASHBOARD
+# ══════════════════════════════════════════
+
+@app.route("/nonsec")
+def nonsec_dashboard():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+    return render_template("nonsec.html")
+
+
+@app.route("/api/nonsec/widgets")
+def get_nonsec_widgets():
+    conn = get_conn()
+    df = pd.read_sql(
+        "SELECT id, widget_name, chart_type, display_order FROM nonsec_widgets WHERE is_active = true ORDER BY display_order",
+        conn,
+    )
+    conn.close()
+    return jsonify(df.to_dict(orient="records"))
+
+
+@app.route("/api/nonsec/filter-options")
+def get_nonsec_filter_options():
+    conn = get_conn()
+    where = "WHERE 1=1"
+
+    region = request.args.get("region")
+    if region and region != "All":
+        where += f" AND region = {safe_literal(region)}"
+
+    zse = request.args.get("zse")
+    if zse and zse != "All":
+        where += f" AND trim(zse) = {safe_literal(zse.strip())}"
+
+    ase = request.args.get("ase")
+    if ase and ase != "All":
+        where += f" AND trim(ase) = {safe_literal(ase.strip())}"
+
+    channels = [c for c in request.args.getlist("channel") if c]
+    if channels:
+        literals = ", ".join(safe_literal(c.strip()) for c in channels)
+        where += f" AND trim(channel) IN ({literals})"
+
+    tiers = [t for t in request.args.getlist("tier") if t]
+    if tiers:
+        literals = ", ".join(safe_literal(t.strip()) for t in tiers)
+        where += f" AND trim(tier) IN ({literals})"
+
+    date_val = request.args.get("date")
+    if date_val:
+        where += f" AND trim(date) = {safe_literal(date_val.strip())}"
+
+    user_id = request.args.get("user_id")
+    if user_id and user_id.strip():
+        where += f" AND ase_ho_id ILIKE {safe_literal('%' + user_id.strip() + '%')}"
+
+    sql = f"""
+        SELECT
+            COALESCE(array_agg(DISTINCT region ORDER BY region) FILTER (WHERE region IS NOT NULL), ARRAY[]::text[]) AS regions,
+            COALESCE(array_agg(DISTINCT trim(zse) ORDER BY trim(zse)) FILTER (WHERE zse IS NOT NULL AND trim(zse) != ''), ARRAY[]::text[]) AS zses,
+            COALESCE(array_agg(DISTINCT trim(ase) ORDER BY trim(ase)) FILTER (WHERE ase IS NOT NULL AND trim(ase) != ''), ARRAY[]::text[]) AS ases,
+            COALESCE(array_agg(DISTINCT trim(channel) ORDER BY trim(channel)) FILTER (WHERE channel IS NOT NULL AND trim(channel) != ''), ARRAY[]::text[]) AS channels,
+            COALESCE(array_agg(DISTINCT trim(tier) ORDER BY trim(tier)) FILTER (WHERE tier IS NOT NULL AND trim(tier) != ''), ARRAY[]::text[]) AS tiers,
+            COALESCE(array_agg(DISTINCT trim(date) ORDER BY trim(date)) FILTER (WHERE date IS NOT NULL AND trim(date) != ''), ARRAY[]::text[]) AS dates,
+            COALESCE(array_agg(DISTINCT trim(ase_ho_id) ORDER BY trim(ase_ho_id)) FILTER (WHERE ase_ho_id IS NOT NULL AND trim(ase_ho_id) != ''), ARRAY[]::text[]) AS ase_ho_ids
+        FROM rtneon {where}
+    """
+    cur = conn.cursor()
+    cur.execute(sql)
+    row = cur.fetchone()
+    conn.close()
+    return jsonify({
+        "regions": row[0] or [],
+        "zses": row[1] or [],
+        "ases": row[2] or [],
+        "channels": row[3] or [],
+        "tiers": row[4] or [],
+        "dates": row[5] or [],
+        "ase_ho_ids": row[6] or [],
+    })
+
+
+@app.route("/api/nonsec/widget-data/<int:widget_id>")
+def get_nonsec_widget_data(widget_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT sql_query FROM nonsec_widgets WHERE id = %s AND is_active = true",
+        (widget_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        conn.close()
+        abort(404)
+
+    sql = row[0]
+
+    region = request.args.get("region")
+    if region and region != "All":
+        sql = sql.replace("{region_filter}", f"AND region = {safe_literal(region)}")
+    else:
+        sql = sql.replace("{region_filter}", "")
+
+    zse = request.args.get("zse")
+    if zse and zse != "All":
+        sql = sql.replace("{zse_filter}", f"AND trim(zse) = {safe_literal(zse.strip())}")
+    else:
+        sql = sql.replace("{zse_filter}", "")
+
+    ase = request.args.get("ase")
+    if ase and ase != "All":
+        sql = sql.replace("{ase_filter}", f"AND trim(ase) = {safe_literal(ase.strip())}")
+    else:
+        sql = sql.replace("{ase_filter}", "")
+
+    channels = [c for c in request.args.getlist("channel") if c]
+    if channels:
+        literals = ", ".join(safe_literal(c.strip()) for c in channels)
+        sql = sql.replace("{channel_filter}", f"AND trim(channel) IN ({literals})")
+    else:
+        sql = sql.replace("{channel_filter}", "")
+
+    tiers = [t for t in request.args.getlist("tier") if t]
+    if tiers:
+        literals = ", ".join(safe_literal(t.strip()) for t in tiers)
+        sql = sql.replace("{tier_filter}", f"AND trim(tier) IN ({literals})")
+    else:
+        sql = sql.replace("{tier_filter}", "")
+
+    date_val = request.args.get("date")
+    if date_val:
+        sql = sql.replace("{date_filter}", f"AND trim(date) = {safe_literal(date_val.strip())}")
+    else:
+        sql = sql.replace("{date_filter}", "")
+
+    user_id = request.args.get("user_id")
+    if user_id and user_id.strip():
+        sql = sql.replace("{user_filter}", f"AND ase_ho_id ILIKE {safe_literal('%' + user_id.strip() + '%')}")
     else:
         sql = sql.replace("{user_filter}", "")
 
