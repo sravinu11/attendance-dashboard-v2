@@ -489,6 +489,41 @@ function renderPivotSalary(body, rows) {
     body.innerHTML = html;
 }
 
+function renderProfile(body, columns, rows) {
+    if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:20px">No employee found</div>'; return; }
+    const r = rows[0];
+    const pic = r['Profile Picture'];
+    const hasPic = pic && pic !== 'NA' && pic.startsWith('http');
+    const proxiedPic = hasPic ? `/api/image-proxy?url=${encodeURIComponent(pic)}` : '';
+
+    body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:8px 0;">
+        <div style="flex-shrink:0;">
+            ${hasPic
+                ? `<img src="${proxiedPic}" alt="Profile" crossorigin="anonymous"
+                    style="width:100px;height:100px;object-fit:cover;border-radius:50%;
+                           border:3px solid var(--cyan,#2ee8ff);box-shadow:0 0 20px rgba(46,232,255,.15);"
+                    onerror="this.style.display='none'">`
+                : `<div style="width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--accent,#3a7bd5),var(--cyan,#2ee8ff));
+                           display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;color:#fff;">
+                    ${(r['Employee Name'] || '?')[0]}</div>`
+            }
+        </div>
+        <div style="flex:1;min-width:200px;">
+            <div style="font-size:20px;font-weight:800;color:var(--text,#e8f0ff);margin-bottom:4px;">${r['Employee Name'] || '-'}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+                ${['Employee ID','User ID','Gender','Region','Type','ASE','ZSE'].map(key => {
+                    const val = r[key];
+                    if (!val && val !== 0) return '';
+                    return `<span style="background:rgba(46,232,255,.08);border:1px solid rgba(46,232,255,.15);border-radius:20px;padding:4px 14px;font-size:11px;color:#c8dcf8;">
+                        <span style="color:var(--cyan,#2ee8ff);font-weight:600;">${key}:</span> ${val}</span>`;
+                }).join('')}
+            </div>
+        </div>
+    </div>`;
+}
+
+const PROFILE_WIDGET_ID = 15;
 const ATTENDANCE_TREND_WIDGET_ID = 3;
 
 function renderAttendanceSummary(body, rows) {
@@ -530,6 +565,7 @@ function renderWidgetBody(widget, columns, rows) {
         case 'pivot':        renderPivot(body, rows); break;
         case 'pivot_region': renderPivotRegion(body, rows); break;
         case 'pivot_timing': renderPivotTiming(body, rows); break;
+        case 'profile':      renderProfile(body, columns, rows); break;
         case 'pivot_salary': renderPivotSalary(body, rows); break;
         default:      renderPie(body, widget.id, columns, rows, widget.chart_type); break;
     }
@@ -592,7 +628,7 @@ function widgetColumnClass(chartType) {
 
 function reloadWidgetData() {
     currentWidgets.forEach(w => {
-        if (w.id === EMPLOYEE_WIDGET_ID) return;
+        if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID) return;
         loadWidget(w);
     });
     refreshEmployeeWidget();
@@ -820,7 +856,7 @@ function getEnteredUserId() {
 }
 
 function widgetShouldShow(widget) {
-    if (widget.id === EMPLOYEE_WIDGET_ID) {
+    if (widget.id === EMPLOYEE_WIDGET_ID || widget.id === PROFILE_WIDGET_ID) {
         return getEnteredUserId().length > 0;
     }
     return true;
@@ -828,16 +864,18 @@ function widgetShouldShow(widget) {
 
 function refreshEmployeeWidget() {
     const uid = getEnteredUserId();
-    const col = document.getElementById(`widget-col-${EMPLOYEE_WIDGET_ID}`);
-    if (!col) return;
 
-    if (uid) {
-        col.style.display = '';
-        const w = currentWidgets.find(w => w.id === EMPLOYEE_WIDGET_ID);
-        if (w) loadWidget(w);
-    } else {
-        col.style.display = 'none';
-    }
+    [EMPLOYEE_WIDGET_ID, PROFILE_WIDGET_ID].forEach(wid => {
+        const col = document.getElementById(`widget-col-${wid}`);
+        if (!col) return;
+        if (uid) {
+            col.style.display = '';
+            const w = currentWidgets.find(w => w.id === wid);
+            if (w) loadWidget(w);
+        } else {
+            col.style.display = 'none';
+        }
+    });
 }
 
 // ── Dashboard loader ─────────────────────────────────────
@@ -851,7 +889,7 @@ async function loadDashboard() {
         const col = document.createElement('div');
         col.id = `widget-col-${widget.id}`;
 
-        const isEmployeeWidget = widget.id === EMPLOYEE_WIDGET_ID;
+        const isEmployeeWidget = widget.id === EMPLOYEE_WIDGET_ID || widget.id === PROFILE_WIDGET_ID;
         const colClass = isEmployeeWidget ? 'col-12' : widgetColumnClass(widget.chart_type);
         col.className = `${colClass} mb-2`;
 

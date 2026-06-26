@@ -162,6 +162,34 @@ function renderTable(body, columns, rows) {
     body.innerHTML = html;
 }
 
+function renderTop10Table(body, columns, rows) {
+    if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:20px">No data</div>'; return; }
+
+    const regionCol = columns.find(c => /region/i.test(c)) || columns[0];
+    const nameCol = columns.find(c => /ase/i.test(c)) || columns[1];
+    const valueCol = columns.find(c => c !== regionCol && c !== nameCol) || columns[2];
+
+    const regions = [...new Set(rows.map(r => r[regionCol]))].sort();
+
+    let html = '<div style="display:flex;flex-wrap:wrap;gap:16px;">';
+
+    regions.forEach(region => {
+        const regionRows = rows.filter(r => r[regionCol] === region).slice(0, 10);
+        html += '<div style="flex:1;min-width:280px;">';
+        html += `<div style="font-size:12px;font-weight:700;color:var(--cyan,#2ee8ff);margin-bottom:8px;padding:6px 12px;background:rgba(46,232,255,.06);border-radius:8px;text-align:center;">${region}</div>`;
+        html += '<table class="table table-sm widget-table" style="margin-bottom:0;">';
+        html += `<thead><tr><th style="width:30px;">#</th><th>${nameCol}</th><th style="text-align:right;">${valueCol}</th></tr></thead><tbody>`;
+        regionRows.forEach((row, i) => {
+            const medal = i === 0 ? '&#129351;' : i === 1 ? '&#129352;' : i === 2 ? '&#129353;' : `${i + 1}`;
+            html += `<tr><td style="text-align:center;">${medal}</td><td>${row[nameCol]}</td><td style="text-align:right;font-weight:700;color:#ffd666;">${(row[valueCol] ?? 0).toLocaleString()}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+    });
+
+    html += '</div>';
+    body.innerHTML = html;
+}
+
 function renderGenericPivot(body, rows, rowKey, headerLabel) {
     if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:20px">No data</div>'; return; }
 
@@ -211,6 +239,9 @@ function renderWidgetBody(widget, columns, rows) {
             break;
         case 'table':
             renderTable(body, columns, rows);
+            break;
+        case 'top10_table':
+            renderTop10Table(body, columns, rows);
             break;
         case 'pivot_location_in':
             renderGenericPivot(body, rows, 'location', 'CHECK IN LOCATION');
