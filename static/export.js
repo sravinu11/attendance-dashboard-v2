@@ -27,16 +27,29 @@ function getFileName(ext) {
 }
 
 function captureDashboard() {
-    const target = document.querySelector('.page-body');
+    const target = document.body;
+    const exportBtns = document.querySelector('.export-bar');
+    const adminModal = document.getElementById('admin-modal');
+    const emailModal = document.getElementById('email-modal');
+    const overlay = document.getElementById('export-overlay');
+    if (exportBtns) exportBtns.style.display = 'none';
+    if (adminModal) adminModal.style.display = 'none';
+    if (emailModal) emailModal.style.display = 'none';
+    if (overlay) overlay.style.cssText = 'display:none !important';
+
     return html2canvas(target, {
         backgroundColor: '#04071a',
         scale: 2,
         useCORS: true,
         allowTaint: true,
         scrollX: 0,
-        scrollY: -window.scrollY,
+        scrollY: 0,
         windowWidth: document.documentElement.scrollWidth,
-        windowHeight: document.documentElement.scrollHeight
+        windowHeight: document.documentElement.scrollHeight,
+        height: document.documentElement.scrollHeight
+    }).then(canvas => {
+        if (exportBtns) exportBtns.style.display = '';
+        return canvas;
     });
 }
 

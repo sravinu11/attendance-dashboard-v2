@@ -91,13 +91,21 @@ function formatDateValue(value) {
     return `${d.getDate()}-${mon}-${d.getFullYear()}`;
 }
 
+function proxyImageUrl(url) {
+    if (/s3[^/]*amazonaws\.com/i.test(url)) {
+        return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+}
+
 function renderCellValue(value) {
     if (!value && value !== 0) return '';
     const dated = formatDateValue(String(value));
     if (dated) return dated;
     if (isImageUrl(value)) {
+        const proxied = proxyImageUrl(value);
         return `<a href="${value}" target="_blank">
-                    <img src="${value}" alt="selfie"
+                    <img src="${proxied}" alt="selfie" crossorigin="anonymous"
                          style="width:60px;height:60px;object-fit:cover;border-radius:8px;
                                 border:1px solid rgba(59,130,246,.3);cursor:pointer;"
                          onerror="this.outerHTML='<span style=\'color:var(--text-muted)\'>No image</span>'">

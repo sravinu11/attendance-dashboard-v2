@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify, abort, request, send_from_directory, session, redirect, url_for
+from flask import Flask, render_template, jsonify, abort, request, send_from_directory, session, redirect, url_for, Response
+import requests as http_requests
 from dotenv import load_dotenv
 from psycopg2.extensions import adapt
 import psycopg2
@@ -29,6 +30,18 @@ def df_to_payload(df):
 
 def safe_literal(value):
     return adapt(value).getquoted().decode()
+
+
+@app.route("/api/image-proxy")
+def image_proxy():
+    url = request.args.get("url", "")
+    if not url or "s3" not in url.lower():
+        abort(400)
+    try:
+        r = http_requests.get(url, timeout=10)
+        return Response(r.content, content_type=r.headers.get("Content-Type", "image/jpeg"))
+    except Exception:
+        abort(502)
 
 
 @app.route("/assets/<path:filename>")
@@ -425,6 +438,13 @@ def get_nonsec_filter_options():
     if date_val:
         where += f" AND trim(date) = {safe_literal(date_val.strip())}"
 
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    if date_from:
+        where += f" AND to_date(trim(date), 'DD-Mon-YY') >= {safe_literal(date_from)}"
+    if date_to:
+        where += f" AND to_date(trim(date), 'DD-Mon-YY') <= {safe_literal(date_to)}"
+
     user_id = request.args.get("user_id")
     if user_id and user_id.strip():
         where += f" AND ase_ho_id ILIKE {safe_literal('%' + user_id.strip() + '%')}"
@@ -503,10 +523,16 @@ def get_nonsec_widget_data(widget_id):
         sql = sql.replace("{tier_filter}", "")
 
     date_val = request.args.get("date")
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    date_parts = []
     if date_val:
-        sql = sql.replace("{date_filter}", f"AND trim(date) = {safe_literal(date_val.strip())}")
-    else:
-        sql = sql.replace("{date_filter}", "")
+        date_parts.append(f"AND trim(date) = {safe_literal(date_val.strip())}")
+    if date_from:
+        date_parts.append(f"AND to_date(trim(date), 'DD-Mon-YY') >= {safe_literal(date_from)}")
+    if date_to:
+        date_parts.append(f"AND to_date(trim(date), 'DD-Mon-YY') <= {safe_literal(date_to)}")
+    sql = sql.replace("{date_filter}", " ".join(date_parts))
 
     user_id = request.args.get("user_id")
     if user_id and user_id.strip():

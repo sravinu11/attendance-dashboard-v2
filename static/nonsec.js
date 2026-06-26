@@ -250,6 +250,11 @@ function buildParams() {
     const date = document.getElementById('date-filter')?.value;
     if (date && date !== 'All') p.set('date', date);
 
+    const df = document.getElementById('date-from')?.value;
+    const dt = document.getElementById('date-to')?.value;
+    if (df) p.set('date_from', df);
+    if (dt) p.set('date_to', dt);
+
     const uid = document.getElementById('user-id-filter')?.value?.trim();
     if (uid) p.set('user_id', uid);
 
@@ -386,6 +391,11 @@ async function initAllFilters() {
     updateMultiDropdown('channel-filter-menu', 'channel-filter-btn', 'All Channels', 'channel-option', opts.channels);
     updateMultiDropdown('tier-filter-menu',    'tier-filter-btn',    'All Tiers',    'tier-option',    opts.tiers);
 
+    // Date range filters
+    ['date-from', 'date-to'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', onFilterChange);
+    });
+
     // User ID dropdown
     const uidDropdown = document.getElementById('userid-dropdown');
     opts.ase_ho_ids.forEach(u => {
@@ -428,6 +438,8 @@ async function clearAllFilters() {
     document.getElementById('zse-filter').value = 'All';
     document.getElementById('ase-filter').value = 'All';
     document.getElementById('date-filter').value = 'All';
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value = '';
     document.getElementById('userid-dropdown').value = 'All';
     document.getElementById('user-id-filter').value = '';
 
