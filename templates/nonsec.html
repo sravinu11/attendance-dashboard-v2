@@ -496,12 +496,10 @@ function switchTheme(theme) {
     localStorage.setItem('dashboard-theme', theme);
 }
 (function() {
-    const saved = localStorage.getItem('dashboard-theme');
-    if (saved) {
-        switchTheme(saved);
-        const sel = document.getElementById('theme-switcher');
-        if (sel) sel.value = saved;
-    }
+    const saved = localStorage.getItem('dashboard-theme') || 'neumorphism';
+    switchTheme(saved);
+    const sel = document.getElementById('theme-switcher');
+    if (sel) sel.value = saved;
 })();
 </script>
 </body>

@@ -739,7 +739,6 @@ async function refreshFilterOptions() {
 
 function onFilterChange() {
     if (cascading) return;
-    refreshFilterOptions();
     reloadWidgetData();
 }
 
