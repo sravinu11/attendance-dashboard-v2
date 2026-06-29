@@ -43,7 +43,14 @@
       "Bash(python add_region_pivot.py)",
       "Bash(Get-Process python *)",
       "Bash(Stop-Process -Force)",
-      "Bash(Start-Sleep -Seconds 1)"
+      "Bash(Start-Sleep -Seconds 1)",
+      "Bash(node -e ' *)",
+      "Bash(python -c \"print\\(open\\('templates/dashboard.html'\\).read\\(\\)[-3000:]\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(cp \"C:\\\\xampp\\\\htdocs\\\\csrdash\\\\index.html\" \"C:\\\\xampp\\\\htdocs\\\\CSR Dash\\\\index.html\")",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
