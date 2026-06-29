@@ -17,8 +17,20 @@ DASHBOARD_PASSWORD = "Quessdashboardlive"
 ADMIN_PASSWORD = "ravisharmaisadmin"
 
 
+from psycopg2 import pool as _pool
+_conn_pool = None
+
+def _get_pool():
+    global _conn_pool
+    if _conn_pool is None:
+        _conn_pool = _pool.ThreadedConnectionPool(1, 10, DATABASE_URL)
+    return _conn_pool
+
 def get_conn():
-    return psycopg2.connect(DATABASE_URL)
+    return _get_pool().getconn()
+
+def put_conn(conn):
+    _get_pool().putconn(conn)
 
 
 def df_to_payload(df):
@@ -80,7 +92,7 @@ def get_widgets():
         "SELECT id, widget_name, chart_type, display_order FROM dashboard_widgets WHERE is_active = true ORDER BY display_order",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df.to_dict(orient="records"))
 
 
@@ -91,7 +103,7 @@ def get_regions():
         "SELECT DISTINCT region FROM samsungdashneon WHERE region IS NOT NULL ORDER BY region",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df["region"].tolist())
 
 
@@ -102,7 +114,7 @@ def get_types():
         "SELECT DISTINCT trim(type) AS type FROM samsungdashneon WHERE type IS NOT NULL AND trim(type) != '' ORDER BY 1",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df["type"].tolist())
 
 
@@ -113,7 +125,7 @@ def get_channels():
         "SELECT DISTINCT trim(channel) AS channel FROM samsungdashneon WHERE channel IS NOT NULL AND trim(channel) != '' ORDER BY 1",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df["channel"].tolist())
 
 
@@ -124,7 +136,7 @@ def get_ases():
         "SELECT DISTINCT trim(ase) AS ase FROM samsungdashneon WHERE ase IS NOT NULL AND trim(ase) != '' ORDER BY 1",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df["ase"].tolist())
 
 
@@ -135,7 +147,7 @@ def get_zses():
         "SELECT DISTINCT trim(zse) AS zse FROM samsungdashneon WHERE zse IS NOT NULL AND trim(zse) != '' ORDER BY 1",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df["zse"].tolist())
 
 
@@ -150,7 +162,7 @@ def get_zse_ase_map():
            ORDER BY 1, 2""",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     # Return as list of {zse, ase} pairs
     return jsonify(df.to_dict(orient="records"))
 
@@ -162,7 +174,7 @@ def get_attendance_types():
         "SELECT DISTINCT trim(attendance_type) AS atype FROM samsungdashneon WHERE attendance_type IS NOT NULL AND trim(attendance_type) != '' ORDER BY 1",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df["atype"].tolist())
 
 
@@ -222,7 +234,7 @@ def get_filter_options():
     cur = conn.cursor()
     cur.execute(sql)
     row = cur.fetchone()
-    conn.close()
+    put_conn(conn)
 
     return jsonify({
         "regions": row[0] or [],
@@ -245,7 +257,7 @@ def get_widget_data(widget_id):
     )
     row = cur.fetchone()
     if row is None:
-        conn.close()
+        put_conn(conn)
         abort(404)
 
     sql = row[0]
@@ -313,7 +325,7 @@ def get_widget_data(widget_id):
         sql = sql.replace("{user_filter}", "")
 
     df = pd.read_sql(sql, conn)
-    conn.close()
+    put_conn(conn)
     return jsonify(df_to_payload(df))
 
 
@@ -403,7 +415,7 @@ def get_nonsec_widgets():
         "SELECT id, widget_name, chart_type, display_order FROM nonsec_widgets WHERE is_active = true ORDER BY display_order",
         conn,
     )
-    conn.close()
+    put_conn(conn)
     return jsonify(df.to_dict(orient="records"))
 
 
@@ -463,7 +475,7 @@ def get_nonsec_filter_options():
     cur = conn.cursor()
     cur.execute(sql)
     row = cur.fetchone()
-    conn.close()
+    put_conn(conn)
     return jsonify({
         "regions": row[0] or [],
         "zses": row[1] or [],
@@ -485,7 +497,7 @@ def get_nonsec_widget_data(widget_id):
     )
     row = cur.fetchone()
     if row is None:
-        conn.close()
+        put_conn(conn)
         abort(404)
 
     sql = row[0]
@@ -541,7 +553,7 @@ def get_nonsec_widget_data(widget_id):
         sql = sql.replace("{user_filter}", "")
 
     df = pd.read_sql(sql, conn)
-    conn.close()
+    put_conn(conn)
     return jsonify(df_to_payload(df))
 
 

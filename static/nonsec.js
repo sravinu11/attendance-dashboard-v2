@@ -70,6 +70,13 @@ function renderTable(body, columns, rows, widgetId) {
     wrap.id = widgetId === 11 ? 'ase-detail-wrap' : '';
     wrap.className = 'table-responsive';
     wrap.style.cssText = 'max-height:500px;overflow:auto;scrollbar-width:thin;scrollbar-color:#3a7bd5 #060e24;';
+    const dateCol = columns.find(c => /date/i.test(c));
+    if (dateCol) {
+        rows.sort((a, b) => {
+            const da = new Date(a[dateCol] || ''), db = new Date(b[dateCol] || '');
+            return da - db;
+        });
+    }
     let html = '<table class="table table-sm widget-table" id="ase-detail-table">';
     html += '<thead><tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
     rows.forEach(row => { html += '<tr>' + columns.map(c => `<td>${row[c] ?? ''}</td>`).join('') + '</tr>'; });
@@ -171,6 +178,7 @@ function exportTableExcel() {
     if (!table) return;
     let csv = '';
     table.querySelectorAll('tr').forEach(tr => {
+        if (tr.style.display === 'none') return;
         const cells = [];
         tr.querySelectorAll('th,td').forEach(td => cells.push('"' + td.textContent.replace(/"/g,'""') + '"'));
         csv += cells.join(',') + '\n';
@@ -185,7 +193,14 @@ function exportTableExcel() {
 function exportTableImage(widgetId) {
     const wrap = document.getElementById('ase-detail-wrap');
     if (!wrap || !window.html2canvas) return;
-    html2canvas(wrap, { backgroundColor: '#1a1a2e', scale: 2 }).then(canvas => {
+    const clone = wrap.cloneNode(true);
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.style.maxHeight = 'none';
+    clone.querySelectorAll('tbody tr').forEach(tr => { if (tr.style.display === 'none') tr.remove(); });
+    document.body.appendChild(clone);
+    html2canvas(clone, { backgroundColor: '#1a1a2e', scale: 2 }).then(canvas => {
+        clone.remove();
         const link = document.createElement('a');
         link.download = 'ASE_Attendance_Detail.png';
         link.href = canvas.toDataURL('image/png');
