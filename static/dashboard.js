@@ -803,9 +803,16 @@ async function initAllFilters() {
         refreshEmployeeWidget();
     });
 
-    // User ID search (debounced)
+    // User ID search (debounced + autofill)
     const uidInput = document.getElementById('user-id-filter');
     if (uidInput) {
+        // Autofill datalist
+        if (opts.user_ids) {
+            let dl = document.getElementById('uid-autofill');
+            if (!dl) { dl = document.createElement('datalist'); dl.id = 'uid-autofill'; document.body.appendChild(dl); }
+            dl.innerHTML = opts.user_ids.slice(0, 500).map(v => `<option value="${v}">`).join('');
+            uidInput.setAttribute('list', 'uid-autofill');
+        }
         let timer;
         uidInput.addEventListener('input', () => {
             clearTimeout(timer);
@@ -813,7 +820,7 @@ async function initAllFilters() {
                 uidDropdown.value = 'All';
                 onFilterChange();
                 refreshEmployeeWidget();
-            }, 600);
+            }, 400);
         });
     }
 }
