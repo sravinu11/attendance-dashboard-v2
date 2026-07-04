@@ -378,14 +378,17 @@ async function clearAllFilters() {
 
 async function loadDashboard() {
     const container = document.getElementById('dashboard-container');
+    const topaseContainer = document.getElementById('topase-container');
     container.innerHTML = '';
+    topaseContainer.innerHTML = '';
     currentWidgets = await (await fetch('/api/nonsec/widgets')).json();
     currentWidgets.forEach(widget => {
+        const isTopAse = (widget.id === TOP10_RT_ID || widget.id === TOP10_9H_ID);
         const col = document.createElement('div');
         col.id = `widget-col-${widget.id}`;
-        col.className = `${widgetColumnClass(widget.chart_type)} mb-2`;
+        col.className = `${isTopAse ? 'col-12' : widgetColumnClass(widget.chart_type)} mb-2`;
         col.innerHTML = `<div class="dashboard-card h-100"><div class="card-header">${widget.widget_name}</div><div class="card-body" id="widget-body-${widget.id}"><div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading...</div></div></div>`;
-        container.appendChild(col);
+        (isTopAse ? topaseContainer : container).appendChild(col);
         loadWidget(widget);
     });
 }

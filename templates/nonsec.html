@@ -614,7 +614,25 @@
         </div>
     </div>
 
-    <div class="row g-4" id="dashboard-container"></div>
+    <!-- Inner sub-tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid rgba(80,130,255,.12);padding-bottom:0;">
+        <button id="subtab-overview" onclick="switchSubTab('overview')"
+            style="padding:8px 22px;font-size:12px;font-weight:700;letter-spacing:.4px;background:none;border:none;border-bottom:2px solid #2ee8ff;color:#2ee8ff;cursor:pointer;transition:all .15s;margin-bottom:-2px;">
+            Overview
+        </button>
+        <button id="subtab-topase" onclick="switchSubTab('topase')"
+            style="padding:8px 22px;font-size:12px;font-weight:700;letter-spacing:.4px;background:none;border:none;border-bottom:2px solid transparent;color:#5a7aaa;cursor:pointer;transition:all .15s;margin-bottom:-2px;">
+            Top ASE
+        </button>
+    </div>
+
+    <div id="tab-overview">
+        <div class="row g-4" id="dashboard-container"></div>
+    </div>
+
+    <div id="tab-topase" style="display:none;">
+        <div class="row g-4" id="topase-container"></div>
+    </div>
 
     <div style="text-align:center;padding:28px 0 12px;font-size:12px;color:#3a5580;letter-spacing:.3px;">
         This Dashboard is Designed and Created by <span style="color:#5a7aaa;font-weight:600;">Ravi Sharma</span>
@@ -660,6 +678,34 @@
 <script src="/static/nonsec.js"></script>
 <script src="/static/export.js"></script>
 <script>
+function switchSubTab(tab) {
+    const isOverview = tab === 'overview';
+    document.getElementById('tab-overview').style.display = isOverview ? '' : 'none';
+    document.getElementById('tab-topase').style.display  = isOverview ? 'none' : '';
+    const activeStyle  = 'border-bottom:2px solid #2ee8ff;color:#2ee8ff;margin-bottom:-2px;';
+    const inactiveStyle = 'border-bottom:2px solid transparent;color:#5a7aaa;margin-bottom:-2px;';
+    document.getElementById('subtab-overview').style.cssText += isOverview  ? activeStyle : inactiveStyle;
+    document.getElementById('subtab-topase').style.cssText   += isOverview  ? inactiveStyle : activeStyle;
+    // Re-apply button base styles that get wiped by cssText +=
+    ['subtab-overview','subtab-topase'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.style.padding = '8px 22px';
+        btn.style.fontSize = '12px';
+        btn.style.fontWeight = '700';
+        btn.style.background = 'none';
+        btn.style.border = 'none';
+        btn.style.cursor = 'pointer';
+    });
+    const activeBtn   = document.getElementById('subtab-' + tab);
+    const inactiveBtn = document.getElementById('subtab-' + (isOverview ? 'topase' : 'overview'));
+    activeBtn.style.borderBottom   = '2px solid #2ee8ff';
+    activeBtn.style.color          = '#2ee8ff';
+    activeBtn.style.marginBottom   = '-2px';
+    inactiveBtn.style.borderBottom = '2px solid transparent';
+    inactiveBtn.style.color        = '#5a7aaa';
+    inactiveBtn.style.marginBottom = '-2px';
+}
+
 function switchTheme(theme) {
     document.body.classList.remove('neon-purple', 'neumorphism', 'glassmorphism', 'skeuomorphism', 'claymorphism', 'light-corporate', 'light-sand', 'light-mint');
     if (theme !== 'cyber-blue') document.body.classList.add(theme);
