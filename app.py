@@ -329,6 +329,65 @@ def get_widget_data(widget_id):
     return jsonify(df_to_payload(df))
 
 
+@app.route("/api/market-availability")
+def market_availability():
+    conn = get_conn()
+
+    region   = request.args.get("region")
+    zse      = request.args.get("zse")
+    ase      = request.args.get("ase")
+    date_from = request.args.get("date_from")
+    date_to   = request.args.get("date_to")
+    types    = [t for t in request.args.getlist("type") if t]
+    channels = [c for c in request.args.getlist("channel") if c]
+    atypes   = [a for a in request.args.getlist("atype") if a]
+    user_id  = request.args.get("user_id")
+
+    where = ("WHERE region IS NOT NULL AND trim(region) NOT IN ('', 'NA') "
+             "AND attendance_type IS NOT NULL AND trim(attendance_type) != ''")
+
+    if region and region != "All":
+        where += f" AND region = {safe_literal(region)}"
+    if zse and zse != "All":
+        where += f" AND trim(zse) = {safe_literal(zse.strip())}"
+    if ase and ase != "All":
+        where += f" AND trim(ase) = {safe_literal(ase.strip())}"
+    if date_from:
+        where += f" AND attendance_date::date >= {safe_literal(date_from)}"
+    if date_to:
+        where += f" AND attendance_date::date <= {safe_literal(date_to)}"
+    if types:
+        literals = ", ".join(safe_literal(t.lower().strip()) for t in types)
+        where += f" AND lower(trim(type)) IN ({literals})"
+    if channels:
+        literals = ", ".join(safe_literal(c.strip()) for c in channels)
+        where += f" AND trim(channel) IN ({literals})"
+    if atypes:
+        literals = ", ".join(safe_literal(a.strip()) for a in atypes)
+        where += f" AND trim(attendance_type) IN ({literals})"
+    if user_id and user_id.strip():
+        where += f" AND CAST(user_id AS TEXT) ILIKE {safe_literal('%' + user_id.strip() + '%')}"
+
+    sql = f"""
+        SELECT
+            attendance_date::date AS "Date",
+            COUNT(*) AS "Total",
+            COUNT(CASE WHEN lower(trim(attendance_type)) SIMILAR TO
+                '%%(present|gate meeting|gate_meeting|gm|training|half day|half_day|half-day)%%'
+                THEN 1 END) AS "Available in Market",
+            COUNT(CASE WHEN lower(trim(attendance_type)) SIMILAR TO
+                '%%(absent|holiday|leave|not marked|not_marked|notmarked|outlet closed|outlet_closed|weekoff|week off|week_off|week-off)%%'
+                THEN 1 END) AS "Not Available in Market"
+        FROM samsungdashneon
+        {where}
+        GROUP BY attendance_date::date
+        ORDER BY attendance_date::date
+    """
+    df = pd.read_sql(sql, conn)
+    put_conn(conn)
+    return jsonify(df_to_payload(df))
+
+
 # ══════════════════════════════════════════
 # ADMIN AUTH FOR EXPORT
 # ══════════════════════════════════════════

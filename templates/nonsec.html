@@ -61,6 +61,19 @@
         .nav-tab.active { color:#2ee8ff; border-bottom-color:#2ee8ff; }
 
         .page-body { padding:22px 28px; }
+        .page-layout { display:flex;gap:20px;align-items:flex-start; }
+        .left-panel {
+            width:220px;flex-shrink:0;
+            background:linear-gradient(135deg,rgba(7,16,42,.97) 0%,rgba(4,9,30,.97) 100%);
+            border:1px solid var(--filter-border);border-radius:14px;padding:16px 14px;
+            box-shadow:0 8px 28px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
+            position:sticky;top:16px;
+        }
+        .left-panel .filter-group { width:100%; }
+        .left-panel .filter-control { min-width:unset;width:100%; }
+        .left-panel .filter-dropdown-btn { min-width:unset;width:100%; }
+        .left-panel-title { font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(80,130,255,.15); }
+        .main-content { flex:1;min-width:0; }
 
         .section-header {
             background:linear-gradient(135deg,rgba(13,26,65,.95) 0%,rgba(8,16,42,.95) 100%);
@@ -548,91 +561,101 @@
         <button class="export-btn email-btn" onclick="showEmailModal()"><span class="lock-icon-span">&#128274; </span>Email Dashboard</button>
     </div>
 
-    <div class="filter-bar">
-        <div class="filter-group">
-            <div class="filter-label">Region</div>
-            <select id="region-filter" class="filter-control"><option value="All">All Regions</option></select>
-        </div>
+    <div class="page-layout">
 
-        <div class="filter-group">
-            <div class="filter-label">ZSE</div>
-            <select id="zse-filter" class="filter-control"><option value="All">All ZSEs</option></select>
-        </div>
+        <!-- ── Left Filter Panel ── -->
+        <div class="left-panel">
+            <div class="left-panel-title">&#9878; Filters</div>
 
-        <div class="filter-group">
-            <div class="filter-label">ASE</div>
-            <select id="ase-filter" class="filter-control"><option value="All">All ASEs</option></select>
-        </div>
-
-        <div class="filter-group">
-            <div class="filter-label">Channel</div>
-            <div class="dropdown">
-                <button type="button" id="channel-filter-btn" class="filter-dropdown-btn dropdown-toggle"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                    All Channels <span style="margin-left:auto;">&#9662;</span>
-                </button>
-                <ul class="dropdown-menu filter-dropdown-menu" id="channel-filter-menu"></ul>
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">Region</div>
+                <select id="region-filter" class="filter-control"><option value="All">All Regions</option></select>
             </div>
-        </div>
 
-        <div class="filter-group">
-            <div class="filter-label">Tier</div>
-            <div class="dropdown">
-                <button type="button" id="tier-filter-btn" class="filter-dropdown-btn dropdown-toggle"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                    All Tiers <span style="margin-left:auto;">&#9662;</span>
-                </button>
-                <ul class="dropdown-menu filter-dropdown-menu" id="tier-filter-menu"></ul>
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">ZSE</div>
+                <select id="zse-filter" class="filter-control"><option value="All">All ZSEs</option></select>
             </div>
+
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">ASE</div>
+                <select id="ase-filter" class="filter-control"><option value="All">All ASEs</option></select>
+            </div>
+
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">Channel</div>
+                <div class="dropdown">
+                    <button type="button" id="channel-filter-btn" class="filter-dropdown-btn dropdown-toggle"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                        All Channels <span style="margin-left:auto;">&#9662;</span>
+                    </button>
+                    <ul class="dropdown-menu filter-dropdown-menu" id="channel-filter-menu"></ul>
+                </div>
+            </div>
+
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">Tier</div>
+                <div class="dropdown">
+                    <button type="button" id="tier-filter-btn" class="filter-dropdown-btn dropdown-toggle"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                        All Tiers <span style="margin-left:auto;">&#9662;</span>
+                    </button>
+                    <ul class="dropdown-menu filter-dropdown-menu" id="tier-filter-menu"></ul>
+                </div>
+            </div>
+
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">Date From</div>
+                <input type="date" id="date-from" class="filter-control">
+            </div>
+
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">Date To</div>
+                <input type="date" id="date-to" class="filter-control">
+            </div>
+
+            <div class="filter-group" style="margin-bottom:12px;">
+                <div class="filter-label">User ID</div>
+                <select id="userid-dropdown" class="filter-control">
+                    <option value="All">All Users</option>
+                </select>
+            </div>
+
+            <div class="filter-group" style="margin-bottom:16px;">
+                <div class="filter-label">Search User</div>
+                <input type="text" id="user-id-filter" class="filter-control"
+                       placeholder="Search ASE HO ID…">
+            </div>
+
+            <button class="btn-clear" style="width:100%;" onclick="clearAllFilters()">&#10005; Clear All</button>
         </div>
 
-        <div class="filter-group">
-            <div class="filter-label">Date From</div>
-            <input type="date" id="date-from" class="filter-control" style="min-width:150px;">
-        </div>
+        <!-- ── Main Content ── -->
+        <div class="main-content">
 
-        <div class="filter-group">
-            <div class="filter-label">Date To</div>
-            <input type="date" id="date-to" class="filter-control" style="min-width:150px;">
-        </div>
+            <!-- Inner sub-tabs -->
+            <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid rgba(80,130,255,.12);padding-bottom:0;">
+                <button id="subtab-overview" onclick="switchSubTab('overview')"
+                    style="padding:8px 22px;font-size:12px;font-weight:700;letter-spacing:.4px;background:none;border:none;border-bottom:2px solid #2ee8ff;color:#2ee8ff;cursor:pointer;transition:all .15s;margin-bottom:-2px;">
+                    Overview
+                </button>
+                <button id="subtab-topase" onclick="switchSubTab('topase')"
+                    style="padding:8px 22px;font-size:12px;font-weight:700;letter-spacing:.4px;background:none;border:none;border-bottom:2px solid transparent;color:#5a7aaa;cursor:pointer;transition:all .15s;margin-bottom:-2px;">
+                    Top ASE
+                </button>
+            </div>
 
-        <div class="filter-group">
-            <div class="filter-label">User ID</div>
-            <select id="userid-dropdown" class="filter-control" style="min-width:160px;">
-                <option value="All">All Users</option>
-            </select>
-        </div>
+            <div id="tab-overview">
+                <div class="row g-4" id="dashboard-container"></div>
+            </div>
 
-        <div class="filter-group">
-            <div class="filter-label">Search User</div>
-            <input type="text" id="user-id-filter" class="filter-control"
-                   placeholder="Search ASE HO ID…" style="min-width:180px;">
-        </div>
+            <div id="tab-topase" style="display:none;">
+                <div class="row g-4" id="topase-container"></div>
+            </div>
 
-        <div class="filter-actions">
-            <button class="btn-clear" onclick="clearAllFilters()">&#10005; Clear All</button>
-        </div>
-    </div>
+        </div><!-- end main-content -->
 
-    <!-- Inner sub-tabs -->
-    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid rgba(80,130,255,.12);padding-bottom:0;">
-        <button id="subtab-overview" onclick="switchSubTab('overview')"
-            style="padding:8px 22px;font-size:12px;font-weight:700;letter-spacing:.4px;background:none;border:none;border-bottom:2px solid #2ee8ff;color:#2ee8ff;cursor:pointer;transition:all .15s;margin-bottom:-2px;">
-            Overview
-        </button>
-        <button id="subtab-topase" onclick="switchSubTab('topase')"
-            style="padding:8px 22px;font-size:12px;font-weight:700;letter-spacing:.4px;background:none;border:none;border-bottom:2px solid transparent;color:#5a7aaa;cursor:pointer;transition:all .15s;margin-bottom:-2px;">
-            Top ASE
-        </button>
-    </div>
-
-    <div id="tab-overview">
-        <div class="row g-4" id="dashboard-container"></div>
-    </div>
-
-    <div id="tab-topase" style="display:none;">
-        <div class="row g-4" id="topase-container"></div>
-    </div>
+    </div><!-- end page-layout -->
 
     <div style="text-align:center;padding:28px 0 12px;font-size:12px;color:#3a5580;letter-spacing:.3px;">
         This Dashboard is Designed and Created by <span style="color:#5a7aaa;font-weight:600;">Ravi Sharma</span>

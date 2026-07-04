@@ -659,12 +659,145 @@ function renderAttendanceSummary(body, rows) {
     body.appendChild(wrapper);
 }
 
+function renderTop10Sec(body, columns, rows) {
+    body.innerHTML = '';
+    if (!rows.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:20px">No data</div>'; return; }
+
+    const regionCol = columns.find(c => /region/i.test(c)) || columns[0];
+    const nameCol   = columns.find(c => /ase/i.test(c))    || columns[1];
+    const valueCol  = columns.find(c => c !== regionCol && c !== nameCol) || columns[2];
+    const medals = ['🥇','🥈','🥉'];
+    const regions = [...new Set(rows.map(r => r[regionCol]))].sort();
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;';
+
+    regions.forEach(region => {
+        const regionRows = rows.filter(r => r[regionCol] === region).slice(0, 10);
+        const card = document.createElement('div');
+        card.style.cssText = 'background:rgba(4,7,26,.6);border:1px solid rgba(58,123,213,.2);border-radius:12px;overflow:hidden;';
+
+        let html = `<div style="background:linear-gradient(135deg,rgba(37,99,235,.25),rgba(46,232,255,.1));padding:10px 14px;font-size:12px;font-weight:800;color:#2ee8ff;letter-spacing:.5px;border-bottom:1px solid rgba(58,123,213,.2);">
+            ${region}
+        </div>`;
+        html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+        html += `<thead><tr>
+            <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;background:rgba(37,99,235,.08);">#</th>
+            <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;background:rgba(37,99,235,.08);">User ID</th>
+            <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;background:rgba(37,99,235,.08);">ASE</th>
+            <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:right;background:rgba(37,99,235,.08);">Days &gt;9H</th>
+        </tr></thead><tbody>`;
+
+        regionRows.forEach((row, i) => {
+            const medal = medals[i] || `${i+1}`;
+            const bg = i === 0 ? 'rgba(245,183,49,.06)' : i % 2 === 0 ? 'rgba(255,255,255,.015)' : '';
+            html += `<tr style="background:${bg};">
+                <td style="padding:7px 12px;color:#f5b731;font-weight:700;">${medal}</td>
+                <td style="padding:7px 12px;color:#7aaeff;font-size:11px;">${row['User ID'] || '-'}</td>
+                <td style="padding:7px 12px;color:#e8f0ff;">${row[nameCol] || '-'}</td>
+                <td style="padding:7px 12px;color:#2ed47a;font-weight:700;text-align:right;">${row[valueCol] ?? 0}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        card.innerHTML = html;
+        grid.appendChild(card);
+    });
+    body.appendChild(grid);
+}
+
+// ── Market Availability Summary ──────────────────────────
+function fmtDate(raw) {
+    if (!raw) return '-';
+    const d = new Date(String(raw).slice(0, 10) + 'T00:00:00');
+    if (isNaN(d)) return String(raw).slice(0, 10);
+    const day   = String(d.getDate()).padStart(2, '0');
+    const month = d.toLocaleDateString('en-US', { month: 'short' });
+    const year  = String(d.getFullYear()).slice(-2);
+    return `${day}-${month}-${year}`;
+}
+
+async function loadMarketSummary() {
+    const container = document.getElementById('market-summary-container');
+    if (!container) return;
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>';
+
+    const params = buildParams();
+    const res = await fetch('/api/market-availability?' + params.toString());
+    const { rows } = await res.json();
+
+    if (!rows.length) {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">No data</div>';
+        return;
+    }
+
+    const totalAll    = rows.reduce((s, r) => s + (r['Total'] || 0), 0);
+    const availAll    = rows.reduce((s, r) => s + (r['Available in Market'] || 0), 0);
+    const notAvailAll = rows.reduce((s, r) => s + (r['Not Available in Market'] || 0), 0);
+    const availPct    = totalAll ? ((availAll / totalAll) * 100).toFixed(1) : '0.0';
+    const notPct      = totalAll ? ((notAvailAll / totalAll) * 100).toFixed(1) : '0.0';
+
+    const tableRows = rows.map((r, i) => {
+        const total = r['Total'] || 0;
+        const avail = r['Available in Market'] || 0;
+        const notAv = r['Not Available in Market'] || 0;
+        const aPct  = total ? ((avail / total) * 100).toFixed(1) : '0.0';
+        const nPct  = total ? ((notAv / total) * 100).toFixed(1) : '0.0';
+        const bg    = i % 2 === 0 ? 'rgba(255,255,255,.02)' : 'transparent';
+        return `<tr style="background:${bg};">
+            <td style="padding:6px 12px;font-size:11px;color:var(--text-primary);white-space:nowrap;">${fmtDate(r['Date'])}</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-primary);">${avail.toLocaleString()}</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-muted);">${aPct}%</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-primary);">${notAv.toLocaleString()}</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-muted);">${nPct}%</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-muted);">${total.toLocaleString()}</td>
+        </tr>`;
+    }).join('');
+
+    const border = '1px solid var(--border-color,rgba(80,130,255,.15))';
+    const thG = `padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:center;border-bottom:${border};border-right:${border};white-space:nowrap;`;
+    const thS = `padding:6px 12px;font-size:10px;font-weight:600;text-align:right;color:var(--text-muted);border-bottom:${border};border-right:${border};white-space:nowrap;`;
+    const thD = `padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left;border-bottom:${border};white-space:nowrap;color:var(--text-muted);`;
+    const ftStyle = `padding:7px 12px;font-size:11px;font-weight:700;color:var(--text-primary);border-top:${border};`;
+
+    container.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:rgba(30,111,241,.06);">
+              <th rowspan="2" style="${thD}border-right:${border};">Date</th>
+              <th colspan="2" style="${thG}color:#2ee8ff;">Available in Market</th>
+              <th colspan="2" style="${thG}color:#ff7eb6;">Not Available in Market</th>
+              <th rowspan="2" style="${thG}color:var(--text-muted);">Total</th>
+            </tr>
+            <tr style="background:rgba(30,111,241,.04);">
+              <th style="${thS}">Count</th>
+              <th style="${thS}">%</th>
+              <th style="${thS}">Count</th>
+              <th style="${thS}">%</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+          <tfoot>
+            <tr style="background:rgba(30,111,241,.08);">
+              <td style="${ftStyle}border-right:${border};">Grand Total</td>
+              <td style="${ftStyle}text-align:right;border-right:${border};">${availAll.toLocaleString()}</td>
+              <td style="${ftStyle}text-align:right;border-right:${border};">${availPct}%</td>
+              <td style="${ftStyle}text-align:right;border-right:${border};">${notAvailAll.toLocaleString()}</td>
+              <td style="${ftStyle}text-align:right;border-right:${border};">${notPct}%</td>
+              <td style="${ftStyle}text-align:right;">${totalAll.toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+}
+
 function renderWidgetBody(widget, columns, rows) {
     const body = document.getElementById(`widget-body-${widget.id}`);
     switch (widget.chart_type) {
         case 'kpi':   renderKpi(body, columns, rows); break;
         case 'table': renderTable(body, columns, rows); break;
         case 'detail_table': renderDetailTable(body, columns, rows); break;
+        case 'top10_sec':   renderTop10Sec(body, columns, rows); break;
         case 'bar':
             renderBar(body, widget.id, columns, rows);
             if (widget.id === ATTENDANCE_TREND_WIDGET_ID && getEnteredUserId()) {
@@ -731,7 +864,7 @@ async function loadWidget(widget) {
 
 function widgetColumnClass(chartType) {
     if (chartType === 'kpi')   return 'col-md-3';
-    if (chartType === 'pivot' || chartType === 'pivot_region' || chartType === 'pivot_timing' || chartType === 'pivot_salary' || chartType === 'detail_table') return 'col-12';
+    if (chartType === 'pivot' || chartType === 'pivot_region' || chartType === 'pivot_timing' || chartType === 'pivot_salary' || chartType === 'detail_table' || chartType === 'top10_sec') return 'col-12';
     if (chartType === 'table') return 'col-md-6';
     return 'col-md-6';
 }
@@ -740,6 +873,7 @@ function reloadWidgetData() {
     const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID);
     Promise.all(toLoad.map(w => loadWidget(w)));
     refreshEmployeeWidget();
+    loadMarketSummary();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -965,6 +1099,7 @@ async function clearAllFilters() {
 
 const EMPLOYEE_WIDGET_ID = 8;
 const DETAIL_TABLE_WIDGET_ID = 16;
+const TOP10_SEC_WIDGET_ID = 17;
 
 function getEnteredUserId() {
     return document.getElementById('user-id-filter')?.value?.trim() || '';
@@ -995,22 +1130,22 @@ function refreshEmployeeWidget() {
 
 // ── Dashboard loader ─────────────────────────────────────
 async function loadDashboard() {
-    const container = document.getElementById('dashboard-container');
-    container.innerHTML = '';
+    const container      = document.getElementById('dashboard-container');
+    const topsecContainer = document.getElementById('topsec-container');
+    container.innerHTML      = '';
+    topsecContainer.innerHTML = '';
 
     currentWidgets = await (await fetch('/api/widgets')).json();
 
     currentWidgets.forEach(widget => {
+        const isEmployeeWidget = widget.id === EMPLOYEE_WIDGET_ID || widget.id === PROFILE_WIDGET_ID;
+        const isTopSec = widget.id === TOP10_SEC_WIDGET_ID;
+
         const col = document.createElement('div');
         col.id = `widget-col-${widget.id}`;
+        col.className = `${isEmployeeWidget || isTopSec ? 'col-12' : widgetColumnClass(widget.chart_type)} mb-2`;
 
-        const isEmployeeWidget = widget.id === EMPLOYEE_WIDGET_ID || widget.id === PROFILE_WIDGET_ID;
-        const colClass = isEmployeeWidget ? 'col-12' : widgetColumnClass(widget.chart_type);
-        col.className = `${colClass} mb-2`;
-
-        if (isEmployeeWidget) {
-            col.style.display = 'none'; // hidden until user_id entered
-        }
+        if (isEmployeeWidget) col.style.display = 'none';
 
         col.innerHTML = `
             <div class="dashboard-card h-100">
@@ -1019,10 +1154,27 @@ async function loadDashboard() {
                     <div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>
                 </div>
             </div>`;
-        container.appendChild(col);
+
+        (isTopSec ? topsecContainer : container).appendChild(col);
+
+        // Inject market availability summary after "Attendance by Region" widget
+        if (!isTopSec && /attendance.by.region/i.test(widget.widget_name)) {
+            const summaryCol = document.createElement('div');
+            summaryCol.id = 'market-summary-col';
+            summaryCol.className = 'col-12 mb-2';
+            summaryCol.innerHTML = `
+                <div class="dashboard-card h-100">
+                    <div class="card-header">Market Availability Summary</div>
+                    <div class="card-body" id="market-summary-container">
+                        <div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>
+                    </div>
+                </div>`;
+            container.appendChild(summaryCol);
+        }
 
         if (!isEmployeeWidget) loadWidget(widget);
     });
+    loadMarketSummary();
 }
 
 // ── Init ─────────────────────────────────────────────────
