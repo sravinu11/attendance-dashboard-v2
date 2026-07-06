@@ -765,8 +765,8 @@ async function loadMarketSummary() {
           <thead>
             <tr style="background:rgba(30,111,241,.06);">
               <th rowspan="2" style="${thD}border-right:${border};">Date</th>
-              <th colspan="2" style="${thG}color:#2ee8ff;">Available in Market</th>
-              <th colspan="2" style="${thG}color:#ff7eb6;">Not Available in Market</th>
+              <th colspan="2" style="${thG}color:#2ee8ff;">Available in Market<br><span style="font-size:9px;font-weight:400;opacity:.75;">(Present / Gate Meeting / Training / Half Day)</span></th>
+              <th colspan="2" style="${thG}color:#ff7eb6;">Not Available in Market<br><span style="font-size:9px;font-weight:400;opacity:.75;">(Weekoff / Leave / Outlet Close / Absent / Holiday / Not Marked)</span></th>
               <th rowspan="2" style="${thG}color:var(--text-muted);">Total</th>
             </tr>
             <tr style="background:rgba(30,111,241,.04);">
