@@ -268,8 +268,8 @@ function renderPie(body, widgetId, columns, rows, chartType) {
     let legendHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
     legendHtml += '<tr style="border-bottom:1px solid rgba(80,130,255,.15);">' +
         '<th style="text-align:left;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">NAME</th>' +
-        '<th style="text-align:right;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">COUNT</th>' +
-        '<th style="text-align:right;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">%</th></tr>';
+        '<th style="text-align:center;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">COUNT</th>' +
+        '<th style="text-align:center;padding:6px 8px;color:#2ee8ff;font-size:10px;letter-spacing:.5px;">%</th></tr>';
     rows.forEach((r, i) => {
         const val = r[valueCol] || 0;
         const pct = total ? ((val / total) * 100).toFixed(1) : '0.0';
@@ -277,8 +277,8 @@ function renderPie(body, widgetId, columns, rows, chartType) {
         legendHtml += `<tr style="border-bottom:1px solid rgba(80,130,255,.06);">` +
             `<td style="padding:5px 8px;color:#c8dcf8;white-space:nowrap;">` +
             `<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${color};margin-right:8px;vertical-align:middle;"></span>${r[labelCol]}</td>` +
-            `<td style="text-align:right;padding:5px 8px;color:#e8f0ff;font-weight:600;">${val.toLocaleString()}</td>` +
-            `<td style="text-align:right;padding:5px 8px;color:#ffd666;font-weight:700;">${pct}%</td></tr>`;
+            `<td style="text-align:center;padding:5px 8px;color:#e8f0ff;font-weight:600;">${val.toLocaleString()}</td>` +
+            `<td style="text-align:center;padding:5px 8px;color:#ffd666;font-weight:700;">${pct}%</td></tr>`;
     });
     legendHtml += '</table>';
     legendDiv.innerHTML = legendHtml;
@@ -685,7 +685,7 @@ function renderTop10Sec(body, columns, rows) {
             <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;background:rgba(37,99,235,.08);">#</th>
             <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;background:rgba(37,99,235,.08);">User ID</th>
             <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;background:rgba(37,99,235,.08);">ASE</th>
-            <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:right;background:rgba(37,99,235,.08);">Days &gt;9H</th>
+            <th style="padding:7px 12px;color:#2ee8ff;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:center;background:rgba(37,99,235,.08);">Days &gt;9H</th>
         </tr></thead><tbody>`;
 
         regionRows.forEach((row, i) => {
@@ -695,7 +695,7 @@ function renderTop10Sec(body, columns, rows) {
                 <td style="padding:7px 12px;color:#f5b731;font-weight:700;">${medal}</td>
                 <td style="padding:7px 12px;color:#7aaeff;font-size:11px;">${row['User ID'] || '-'}</td>
                 <td style="padding:7px 12px;color:#e8f0ff;">${row[nameCol] || '-'}</td>
-                <td style="padding:7px 12px;color:#2ed47a;font-weight:700;text-align:right;">${row[valueCol] ?? 0}</td>
+                <td style="padding:7px 12px;color:#2ed47a;font-weight:700;text-align:center;">${row[valueCol] ?? 0}</td>
             </tr>`;
         });
         html += '</tbody></table>';
@@ -745,17 +745,17 @@ async function loadMarketSummary() {
         const bg    = i % 2 === 0 ? 'rgba(255,255,255,.02)' : 'transparent';
         return `<tr style="background:${bg};">
             <td style="padding:6px 12px;font-size:11px;color:var(--text-primary);white-space:nowrap;">${fmtDate(r['Date'])}</td>
-            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-primary);">${avail.toLocaleString()}</td>
-            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-muted);">${aPct}%</td>
-            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-primary);">${notAv.toLocaleString()}</td>
-            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-muted);">${nPct}%</td>
-            <td style="padding:6px 12px;font-size:11px;text-align:right;color:var(--text-muted);">${total.toLocaleString()}</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:center;color:var(--text-primary);">${avail.toLocaleString()}</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:center;color:var(--text-muted);">${aPct}%</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:center;color:var(--text-primary);">${notAv.toLocaleString()}</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:center;color:var(--text-muted);">${nPct}%</td>
+            <td style="padding:6px 12px;font-size:11px;text-align:center;color:var(--text-muted);">${total.toLocaleString()}</td>
         </tr>`;
     }).join('');
 
     const border = '1px solid var(--border-color,rgba(80,130,255,.15))';
     const thG = `padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:center;border-bottom:${border};border-right:${border};white-space:nowrap;`;
-    const thS = `padding:6px 12px;font-size:10px;font-weight:600;text-align:right;color:var(--text-muted);border-bottom:${border};border-right:${border};white-space:nowrap;`;
+    const thS = `padding:6px 12px;font-size:10px;font-weight:600;text-align:center;color:var(--text-muted);border-bottom:${border};border-right:${border};white-space:nowrap;`;
     const thD = `padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left;border-bottom:${border};white-space:nowrap;color:var(--text-muted);`;
     const ftStyle = `padding:7px 12px;font-size:11px;font-weight:700;color:var(--text-primary);border-top:${border};`;
 
@@ -780,11 +780,11 @@ async function loadMarketSummary() {
           <tfoot>
             <tr style="background:rgba(30,111,241,.08);">
               <td style="${ftStyle}border-right:${border};">Grand Total</td>
-              <td style="${ftStyle}text-align:right;border-right:${border};">${availAll.toLocaleString()}</td>
-              <td style="${ftStyle}text-align:right;border-right:${border};">${availPct}%</td>
-              <td style="${ftStyle}text-align:right;border-right:${border};">${notAvailAll.toLocaleString()}</td>
-              <td style="${ftStyle}text-align:right;border-right:${border};">${notPct}%</td>
-              <td style="${ftStyle}text-align:right;">${totalAll.toLocaleString()}</td>
+              <td style="${ftStyle}text-align:center;border-right:${border};">${availAll.toLocaleString()}</td>
+              <td style="${ftStyle}text-align:center;border-right:${border};">${availPct}%</td>
+              <td style="${ftStyle}text-align:center;border-right:${border};">${notAvailAll.toLocaleString()}</td>
+              <td style="${ftStyle}text-align:center;border-right:${border};">${notPct}%</td>
+              <td style="${ftStyle}text-align:center;">${totalAll.toLocaleString()}</td>
             </tr>
           </tfoot>
         </table>
