@@ -13,7 +13,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-DASHBOARD_PASSWORD = "Quessdashboardlive"
+DASHBOARD_PASSWORD = "Quess"
 ADMIN_PASSWORD = "ravisharmaisadmin"
 
 
