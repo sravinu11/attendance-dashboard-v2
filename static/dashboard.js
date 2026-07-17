@@ -869,19 +869,26 @@ async function loadWidget(widget) {
 
 // ── Load all widgets in one request ─────────────────────
 async function loadAllWidgets() {
-    const params = buildParams();
-    const res = await fetch('/api/all-widget-data?' + params.toString());
-    const allData = await res.json();
+    try {
+        const params = buildParams();
+        const res = await fetch('/api/all-widget-data?' + params.toString());
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const allData = await res.json();
 
-    currentWidgets.forEach(w => {
-        if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID) return;
-        const payload = allData[w.id];
-        if (payload) renderWidgetBody(w, payload.columns, payload.rows);
-    });
+        currentWidgets.forEach(w => {
+            if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID) return;
+            const payload = allData[w.id] || allData[String(w.id)];
+            if (payload) renderWidgetBody(w, payload.columns, payload.rows);
+        });
 
-    // Render market summary from bundled response
-    if (allData['market']) {
-        renderMarketSummaryData(allData['market'].rows);
+        if (allData['market']) {
+            renderMarketSummaryData(allData['market'].rows);
+        }
+    } catch (e) {
+        // Fallback: load each widget individually
+        const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID);
+        await Promise.all(toLoad.map(w => loadWidget(w)));
+        loadMarketSummary();
     }
 }
 

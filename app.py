@@ -369,47 +369,63 @@ def get_widget_data(widget_id):
     return jsonify(df_to_payload(df))
 
 
+def _aget(args, key, default=None):
+    """Get single value from either request.args or a plain dict."""
+    v = args.get(key, default)
+    if isinstance(v, list): return v[0] if v else default
+    return v
+
+def _agetlist(args, key):
+    """Get list of values from either request.args (via getlist) or a plain dict."""
+    if hasattr(args, 'getlist'):
+        return [x for x in args.getlist(key) if x]
+    v = args.get(key, [])
+    if isinstance(v, list): return [x for x in v if x]
+    return [v] if v else []
+
 def apply_filters_to_sql(sql, args):
     """Apply all dashboard filter params to a SQL template string."""
-    region = args.get("region")
+    region = _aget(args, "region")
     sql = sql.replace("{region_filter}", f"AND region = {safe_literal(region)}" if region and region != "All" else "")
 
-    types = [t for t in args.getlist("type") if t]
+    types = _agetlist(args, "type")
     sql = sql.replace("{type_filter}", f"AND lower(trim(type)) IN ({', '.join(safe_literal(t.lower().strip()) for t in types)})" if types else "")
 
-    channels = [c for c in args.getlist("channel") if c]
+    channels = _agetlist(args, "channel")
     sql = sql.replace("{channel_filter}", f"AND trim(channel) IN ({', '.join(safe_literal(c.strip()) for c in channels)})" if channels else "")
 
-    ase = args.get("ase")
+    ase = _aget(args, "ase")
     sql = sql.replace("{ase_filter}", f"AND trim(ase) = {safe_literal(ase.strip())}" if ase and ase != "All" else "")
 
-    date_from = args.get("date_from")
-    date_to   = args.get("date_to")
+    date_from = _aget(args, "date_from")
+    date_to   = _aget(args, "date_to")
     date_parts = []
     if date_from: date_parts.append(f"AND attendance_date::date >= {safe_literal(date_from)}")
     if date_to:   date_parts.append(f"AND attendance_date::date <= {safe_literal(date_to)}")
     sql = sql.replace("{date_filter}", " ".join(date_parts))
 
-    zse = args.get("zse")
+    zse = _aget(args, "zse")
     sql = sql.replace("{zse_filter}", f"AND trim(zse) = {safe_literal(zse.strip())}" if zse and zse != "All" else "")
 
-    atypes = [a for a in args.getlist("atype") if a]
+    atypes = _agetlist(args, "atype")
     sql = sql.replace("{atype_filter}", f"AND trim(attendance_type) IN ({', '.join(safe_literal(a.strip()) for a in atypes)})" if atypes else "")
 
-    user_id = args.get("user_id")
+    user_id = _aget(args, "user_id")
     sql = sql.replace("{user_filter}", f"AND CAST(user_id AS TEXT) ILIKE {safe_literal('%' + user_id.strip() + '%')}" if user_id and user_id.strip() else "")
 
     return sql
 
 
-def _run_widget_query(widget_row, args):
+def _run_widget_query(widget_row, args_dict):
     """Run a single widget SQL and return (widget_id, payload). Used in thread pool."""
     widget_id, sql_query = widget_row
-    sql = apply_filters_to_sql(sql_query, args)
+    sql = apply_filters_to_sql(sql_query, args_dict)
     conn = get_conn()
     try:
         df = pd.read_sql(sql, conn)
         return widget_id, df_to_payload(df)
+    except Exception:
+        return widget_id, {"columns": [], "rows": []}
     finally:
         put_conn(conn)
 
@@ -422,49 +438,51 @@ def get_all_widget_data():
     if cached:
         return jsonify(cached)
 
-    # Fetch active widget queries (already cached)
-    widgets_cached = cache_get('dashboard_widgets')
+    # Fetch widget SQL queries from DB
     conn = get_conn()
-    if widgets_cached:
-        widget_rows = [(w['id'], None) for w in widgets_cached]
-        # Need the SQL queries — fetch separately
+    try:
         cur = conn.cursor()
         cur.execute("SELECT id, sql_query FROM dashboard_widgets WHERE is_active = true ORDER BY display_order")
         widget_rows = cur.fetchall()
-        put_conn(conn)
-    else:
-        cur = conn.cursor()
-        cur.execute("SELECT id, sql_query FROM dashboard_widgets WHERE is_active = true ORDER BY display_order")
-        widget_rows = cur.fetchall()
+    finally:
         put_conn(conn)
 
-    args = request.args
+    # Copy request.args to a plain dict (safe to pass across threads)
+    args_dict = dict(request.args.lists())
+    # Flatten single-value keys so .get() works naturally
+    flat_args = {k: (v[0] if len(v) == 1 else v) for k, v in args_dict.items()}
 
     # Run all widget queries in parallel threads
     results = {}
     with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(_run_widget_query, row, args): row[0] for row in widget_rows}
+        futures = {executor.submit(_run_widget_query, row, flat_args): row[0] for row in widget_rows}
         for future in as_completed(futures):
-            widget_id, payload = future.result()
-            results[widget_id] = payload
+            try:
+                widget_id, payload = future.result()
+                results[widget_id] = payload
+            except Exception:
+                pass
 
-    # Also run market-availability in the same bundle
-    results['market'] = _get_market_availability(args)
+    # Market availability in same bundle
+    try:
+        results['market'] = _get_market_availability(flat_args)
+    except Exception:
+        results['market'] = {"columns": [], "rows": []}
 
     cache_set(cache_key, results)
     return jsonify(results)
 
 
 def _get_market_availability(args):
-    region   = args.get("region")
-    zse      = args.get("zse")
-    ase      = args.get("ase")
-    date_from = args.get("date_from")
-    date_to   = args.get("date_to")
-    types    = [t for t in args.getlist("type") if t]
-    channels = [c for c in args.getlist("channel") if c]
-    atypes   = [a for a in args.getlist("atype") if a]
-    user_id  = args.get("user_id")
+    region   = _aget(args, "region")
+    zse      = _aget(args, "zse")
+    ase      = _aget(args, "ase")
+    date_from = _aget(args, "date_from")
+    date_to   = _aget(args, "date_to")
+    types    = _agetlist(args, "type")
+    channels = _agetlist(args, "channel")
+    atypes   = _agetlist(args, "atype")
+    user_id  = _aget(args, "user_id")
 
     where = ("WHERE region IS NOT NULL AND trim(region) NOT IN ('', 'NA') "
              "AND attendance_type IS NOT NULL AND trim(attendance_type) != ''")
