@@ -716,16 +716,11 @@ function fmtDate(raw) {
     return `${day}-${month}-${year}`;
 }
 
-async function loadMarketSummary() {
+function renderMarketSummaryData(rows) {
     const container = document.getElementById('market-summary-container');
     if (!container) return;
-    container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>';
 
-    const params = buildParams();
-    const res = await fetch('/api/market-availability?' + params.toString());
-    const { rows } = await res.json();
-
-    if (!rows.length) {
+    if (!rows || !rows.length) {
         container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">No data</div>';
         return;
     }
@@ -791,6 +786,16 @@ async function loadMarketSummary() {
       </div>`;
 }
 
+async function loadMarketSummary() {
+    const container = document.getElementById('market-summary-container');
+    if (!container) return;
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>';
+    const params = buildParams();
+    const res = await fetch('/api/market-availability?' + params.toString());
+    const { rows } = await res.json();
+    renderMarketSummaryData(rows);
+}
+
 function renderWidgetBody(widget, columns, rows) {
     const body = document.getElementById(`widget-body-${widget.id}`);
     switch (widget.chart_type) {
@@ -854,12 +859,30 @@ function buildParams() {
     return p;
 }
 
-// ── Load single widget ───────────────────────────────────
+// ── Load single widget (fallback only) ──────────────────
 async function loadWidget(widget) {
     const params = buildParams();
     const res = await fetch(`/api/widget-data/${widget.id}?${params.toString()}`);
     const { columns, rows } = await res.json();
     renderWidgetBody(widget, columns, rows);
+}
+
+// ── Load all widgets in one request ─────────────────────
+async function loadAllWidgets() {
+    const params = buildParams();
+    const res = await fetch('/api/all-widget-data?' + params.toString());
+    const allData = await res.json();
+
+    currentWidgets.forEach(w => {
+        if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID) return;
+        const payload = allData[w.id];
+        if (payload) renderWidgetBody(w, payload.columns, payload.rows);
+    });
+
+    // Render market summary from bundled response
+    if (allData['market']) {
+        renderMarketSummaryData(allData['market'].rows);
+    }
 }
 
 function widgetColumnClass(chartType) {
@@ -870,10 +893,8 @@ function widgetColumnClass(chartType) {
 }
 
 function reloadWidgetData() {
-    const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID);
-    Promise.all(toLoad.map(w => loadWidget(w)));
+    loadAllWidgets();
     refreshEmployeeWidget();
-    loadMarketSummary();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1172,9 +1193,8 @@ async function loadDashboard() {
             container.appendChild(summaryCol);
         }
 
-        if (!isEmployeeWidget) loadWidget(widget);
     });
-    loadMarketSummary();
+    loadAllWidgets();
 }
 
 // ── Init ─────────────────────────────────────────────────

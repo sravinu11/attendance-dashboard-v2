@@ -7,6 +7,8 @@ import pandas as pd
 import json
 import os
 import time
+import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -365,6 +367,150 @@ def get_widget_data(widget_id):
     df = pd.read_sql(sql, conn)
     put_conn(conn)
     return jsonify(df_to_payload(df))
+
+
+def apply_filters_to_sql(sql, args):
+    """Apply all dashboard filter params to a SQL template string."""
+    region = args.get("region")
+    sql = sql.replace("{region_filter}", f"AND region = {safe_literal(region)}" if region and region != "All" else "")
+
+    types = [t for t in args.getlist("type") if t]
+    sql = sql.replace("{type_filter}", f"AND lower(trim(type)) IN ({', '.join(safe_literal(t.lower().strip()) for t in types)})" if types else "")
+
+    channels = [c for c in args.getlist("channel") if c]
+    sql = sql.replace("{channel_filter}", f"AND trim(channel) IN ({', '.join(safe_literal(c.strip()) for c in channels)})" if channels else "")
+
+    ase = args.get("ase")
+    sql = sql.replace("{ase_filter}", f"AND trim(ase) = {safe_literal(ase.strip())}" if ase and ase != "All" else "")
+
+    date_from = args.get("date_from")
+    date_to   = args.get("date_to")
+    date_parts = []
+    if date_from: date_parts.append(f"AND attendance_date::date >= {safe_literal(date_from)}")
+    if date_to:   date_parts.append(f"AND attendance_date::date <= {safe_literal(date_to)}")
+    sql = sql.replace("{date_filter}", " ".join(date_parts))
+
+    zse = args.get("zse")
+    sql = sql.replace("{zse_filter}", f"AND trim(zse) = {safe_literal(zse.strip())}" if zse and zse != "All" else "")
+
+    atypes = [a for a in args.getlist("atype") if a]
+    sql = sql.replace("{atype_filter}", f"AND trim(attendance_type) IN ({', '.join(safe_literal(a.strip()) for a in atypes)})" if atypes else "")
+
+    user_id = args.get("user_id")
+    sql = sql.replace("{user_filter}", f"AND CAST(user_id AS TEXT) ILIKE {safe_literal('%' + user_id.strip() + '%')}" if user_id and user_id.strip() else "")
+
+    return sql
+
+
+def _run_widget_query(widget_row, args):
+    """Run a single widget SQL and return (widget_id, payload). Used in thread pool."""
+    widget_id, sql_query = widget_row
+    sql = apply_filters_to_sql(sql_query, args)
+    conn = get_conn()
+    try:
+        df = pd.read_sql(sql, conn)
+        return widget_id, df_to_payload(df)
+    finally:
+        put_conn(conn)
+
+
+@app.route("/api/all-widget-data")
+def get_all_widget_data():
+    # Build a cache key from the filter params
+    cache_key = "all_widgets:" + hashlib.md5(request.query_string).hexdigest()
+    cached = cache_get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    # Fetch active widget queries (already cached)
+    widgets_cached = cache_get('dashboard_widgets')
+    conn = get_conn()
+    if widgets_cached:
+        widget_rows = [(w['id'], None) for w in widgets_cached]
+        # Need the SQL queries — fetch separately
+        cur = conn.cursor()
+        cur.execute("SELECT id, sql_query FROM dashboard_widgets WHERE is_active = true ORDER BY display_order")
+        widget_rows = cur.fetchall()
+        put_conn(conn)
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT id, sql_query FROM dashboard_widgets WHERE is_active = true ORDER BY display_order")
+        widget_rows = cur.fetchall()
+        put_conn(conn)
+
+    args = request.args
+
+    # Run all widget queries in parallel threads
+    results = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(_run_widget_query, row, args): row[0] for row in widget_rows}
+        for future in as_completed(futures):
+            widget_id, payload = future.result()
+            results[widget_id] = payload
+
+    # Also run market-availability in the same bundle
+    results['market'] = _get_market_availability(args)
+
+    cache_set(cache_key, results)
+    return jsonify(results)
+
+
+def _get_market_availability(args):
+    region   = args.get("region")
+    zse      = args.get("zse")
+    ase      = args.get("ase")
+    date_from = args.get("date_from")
+    date_to   = args.get("date_to")
+    types    = [t for t in args.getlist("type") if t]
+    channels = [c for c in args.getlist("channel") if c]
+    atypes   = [a for a in args.getlist("atype") if a]
+    user_id  = args.get("user_id")
+
+    where = ("WHERE region IS NOT NULL AND trim(region) NOT IN ('', 'NA') "
+             "AND attendance_type IS NOT NULL AND trim(attendance_type) != ''")
+    if region and region != "All":
+        where += f" AND region = {safe_literal(region)}"
+    if zse and zse != "All":
+        where += f" AND trim(zse) = {safe_literal(zse.strip())}"
+    if ase and ase != "All":
+        where += f" AND trim(ase) = {safe_literal(ase.strip())}"
+    if date_from:
+        where += f" AND attendance_date::date >= {safe_literal(date_from)}"
+    if date_to:
+        where += f" AND attendance_date::date <= {safe_literal(date_to)}"
+    if types:
+        where += f" AND lower(trim(type)) IN ({', '.join(safe_literal(t.lower().strip()) for t in types)})"
+    if channels:
+        where += f" AND trim(channel) IN ({', '.join(safe_literal(c.strip()) for c in channels)})"
+    if atypes:
+        where += f" AND trim(attendance_type) IN ({', '.join(safe_literal(a.strip()) for a in atypes)})"
+    if user_id and user_id.strip():
+        where += f" AND CAST(user_id AS TEXT) ILIKE {safe_literal('%' + user_id.strip() + '%')}"
+
+    sql = f"""
+        SELECT
+            attendance_date::date AS "Date",
+            COUNT(*) AS "Total",
+            COUNT(CASE WHEN lower(trim(attendance_type)) IN (
+                'present','gate meeting','gate_meeting','gm','training',
+                'half day','half_day','half-day'
+            ) THEN 1 END) AS "Available in Market",
+            COUNT(CASE WHEN lower(trim(attendance_type)) IN (
+                'absent','holiday','leave','not marked','not_marked','notmarked',
+                'outlet closed','outlet_closed','outlet close','weekoff',
+                'week off','week_off','week-off'
+            ) THEN 1 END) AS "Not Available in Market"
+        FROM samsungdashneon
+        {where}
+        GROUP BY attendance_date::date
+        ORDER BY attendance_date::date
+    """
+    conn = get_conn()
+    try:
+        df = pd.read_sql(sql, conn)
+        return df_to_payload(df)
+    finally:
+        put_conn(conn)
 
 
 @app.route("/api/market-availability")
