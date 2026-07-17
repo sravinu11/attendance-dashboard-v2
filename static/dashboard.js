@@ -124,6 +124,27 @@ function renderTable(body, columns, rows) {
     body.innerHTML = html;
 }
 
+function renderDetailTablePlaceholder(body) {
+    body.innerHTML = `
+        <div style="text-align:center;padding:32px 0;">
+            <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+                Table not loaded — click below to fetch data
+            </div>
+            <button onclick="loadDetailTableNow(this)" style="background:rgba(46,232,255,.15);border:1px solid rgba(46,232,255,.3);color:#2ee8ff;border-radius:8px;padding:9px 24px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.4px;">
+                Load Employee Attendance Detail
+            </button>
+        </div>`;
+}
+
+async function loadDetailTableNow(btn) {
+    const body = btn.closest('.card-body');
+    body.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>';
+    const params = buildParams();
+    const res = await fetch(`/api/widget-data/${DETAIL_TABLE_WIDGET_ID}?${params.toString()}`);
+    const { columns, rows } = await res.json();
+    renderDetailTable(body, columns, rows);
+}
+
 function renderDetailTable(body, columns, rows) {
     body.innerHTML = '';
     const toolbar = document.createElement('div');
@@ -801,7 +822,7 @@ function renderWidgetBody(widget, columns, rows) {
     switch (widget.chart_type) {
         case 'kpi':   renderKpi(body, columns, rows); break;
         case 'table': renderTable(body, columns, rows); break;
-        case 'detail_table': renderDetailTable(body, columns, rows); break;
+        case 'detail_table': renderDetailTablePlaceholder(body); break;
         case 'top10_sec':   renderTop10Sec(body, columns, rows); break;
         case 'bar':
             renderBar(body, widget.id, columns, rows);
@@ -876,7 +897,7 @@ async function loadAllWidgets() {
         const allData = await res.json();
 
         currentWidgets.forEach(w => {
-            if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID) return;
+            if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID || w.id === DETAIL_TABLE_WIDGET_ID) return;
             const payload = allData[w.id] || allData[String(w.id)];
             if (payload) renderWidgetBody(w, payload.columns, payload.rows);
         });
@@ -886,7 +907,7 @@ async function loadAllWidgets() {
         }
     } catch (e) {
         // Fallback: load each widget individually
-        const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID);
+        const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID && w.id !== DETAIL_TABLE_WIDGET_ID);
         await Promise.all(toLoad.map(w => loadWidget(w)));
         loadMarketSummary();
     }

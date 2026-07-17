@@ -442,7 +442,7 @@ def get_all_widget_data():
     conn = get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, sql_query FROM dashboard_widgets WHERE is_active = true ORDER BY display_order")
+        cur.execute("SELECT id, sql_query FROM dashboard_widgets WHERE is_active = true AND id != 16 ORDER BY display_order")
         widget_rows = cur.fetchall()
     finally:
         put_conn(conn)
