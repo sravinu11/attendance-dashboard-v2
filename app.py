@@ -6,6 +6,7 @@ import psycopg2
 import pandas as pd
 import json
 import os
+import time
 
 load_dotenv()
 
@@ -23,7 +24,7 @@ _conn_pool = None
 def _get_pool():
     global _conn_pool
     if _conn_pool is None:
-        _conn_pool = _pool.ThreadedConnectionPool(1, 10, DATABASE_URL)
+        _conn_pool = _pool.ThreadedConnectionPool(2, 20, DATABASE_URL)
     return _conn_pool
 
 def get_conn():
@@ -31,6 +32,19 @@ def get_conn():
 
 def put_conn(conn):
     _get_pool().putconn(conn)
+
+# ── Simple TTL cache ─────────────────────────────────────
+_cache = {}
+CACHE_TTL = 300  # 5 minutes
+
+def cache_get(key):
+    entry = _cache.get(key)
+    if entry and time.time() - entry['ts'] < CACHE_TTL:
+        return entry['data']
+    return None
+
+def cache_set(key, data):
+    _cache[key] = {'data': data, 'ts': time.time()}
 
 
 def df_to_payload(df):
@@ -87,13 +101,18 @@ def dashboard():
 
 @app.route("/api/widgets")
 def get_widgets():
+    cached = cache_get('dashboard_widgets')
+    if cached:
+        return jsonify(cached)
     conn = get_conn()
     df = pd.read_sql(
         "SELECT id, widget_name, chart_type, display_order FROM dashboard_widgets WHERE is_active = true ORDER BY display_order",
         conn,
     )
     put_conn(conn)
-    return jsonify(df.to_dict(orient="records"))
+    result = df.to_dict(orient="records")
+    cache_set('dashboard_widgets', result)
+    return jsonify(result)
 
 
 @app.route("/api/regions")
@@ -180,6 +199,22 @@ def get_attendance_types():
 
 @app.route("/api/filter-options")
 def get_filter_options():
+    # Check if any filter is active
+    has_filters = any([
+        request.args.get("region") and request.args.get("region") != "All",
+        request.args.getlist("type"),
+        request.args.getlist("channel"),
+        request.args.get("ase") and request.args.get("ase") != "All",
+        request.args.get("zse") and request.args.get("zse") != "All",
+        request.args.getlist("atype"),
+        request.args.get("date_from"),
+        request.args.get("date_to"),
+    ])
+    if not has_filters:
+        cached = cache_get('filter_options_all')
+        if cached:
+            return jsonify(cached)
+
     conn = get_conn()
 
     where = "WHERE 1=1"
@@ -236,7 +271,7 @@ def get_filter_options():
     row = cur.fetchone()
     put_conn(conn)
 
-    return jsonify({
+    result = {
         "regions": row[0] or [],
         "types": row[1] or [],
         "channels": row[2] or [],
@@ -244,7 +279,10 @@ def get_filter_options():
         "zses": row[4] or [],
         "atypes": row[5] or [],
         "user_ids": row[6] or [],
-    })
+    }
+    if not has_filters:
+        cache_set('filter_options_all', result)
+    return jsonify(result)
 
 
 @app.route("/api/widget-data/<int:widget_id>")
@@ -372,12 +410,15 @@ def market_availability():
         SELECT
             attendance_date::date AS "Date",
             COUNT(*) AS "Total",
-            COUNT(CASE WHEN lower(trim(attendance_type)) SIMILAR TO
-                '%%(present|gate meeting|gate_meeting|gm|training|half day|half_day|half-day)%%'
-                THEN 1 END) AS "Available in Market",
-            COUNT(CASE WHEN lower(trim(attendance_type)) SIMILAR TO
-                '%%(absent|holiday|leave|not marked|not_marked|notmarked|outlet closed|outlet_closed|weekoff|week off|week_off|week-off)%%'
-                THEN 1 END) AS "Not Available in Market"
+            COUNT(CASE WHEN lower(trim(attendance_type)) IN (
+                'present','gate meeting','gate_meeting','gm','training',
+                'half day','half_day','half-day'
+            ) THEN 1 END) AS "Available in Market",
+            COUNT(CASE WHEN lower(trim(attendance_type)) IN (
+                'absent','holiday','leave','not marked','not_marked','notmarked',
+                'outlet closed','outlet_closed','outlet close','weekoff',
+                'week off','week_off','week-off'
+            ) THEN 1 END) AS "Not Available in Market"
         FROM samsungdashneon
         {where}
         GROUP BY attendance_date::date
@@ -617,4 +658,4 @@ def get_nonsec_widget_data(widget_id):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True, threaded=True, use_reloader=False)
