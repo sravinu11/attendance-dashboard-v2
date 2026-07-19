@@ -124,135 +124,6 @@ function renderTable(body, columns, rows) {
     body.innerHTML = html;
 }
 
-function renderDetailTablePlaceholder(body) {
-    body.innerHTML = `
-        <div style="text-align:center;padding:32px 0;">
-            <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
-                Table not loaded — click below to fetch data
-            </div>
-            <button onclick="loadDetailTableNow(this)" style="background:rgba(46,232,255,.15);border:1px solid rgba(46,232,255,.3);color:#2ee8ff;border-radius:8px;padding:9px 24px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.4px;">
-                Load Employee Attendance Detail
-            </button>
-        </div>`;
-}
-
-async function loadDetailTableNow(btn) {
-    const body = btn.closest('.card-body');
-    body.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Loading…</div>';
-    const params = buildParams();
-    const res = await fetch(`/api/widget-data/${DETAIL_TABLE_WIDGET_ID}?${params.toString()}`);
-    const { columns, rows } = await res.json();
-    renderDetailTable(body, columns, rows);
-}
-
-function renderDetailTable(body, columns, rows) {
-    body.innerHTML = '';
-    const toolbar = document.createElement('div');
-    toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;';
-    toolbar.innerHTML = `
-        <input type="text" id="emp-detail-search" placeholder="Search by User ID..."
-            list="emp-detail-autofill"
-            style="background:rgba(4,7,26,.85);color:#e8f0ff;border:1px solid rgba(58,123,213,.28);border-radius:8px;padding:6px 12px;font-size:12px;flex:1;min-width:180px;outline:none;">
-        <datalist id="emp-detail-autofill"></datalist>
-        <button id="emp-detail-search-btn" style="background:rgba(46,232,255,.15);border:1px solid rgba(46,232,255,.3);color:#2ee8ff;border-radius:8px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;">Search</button>
-        <button onclick="exportDetailExcel()" style="background:rgba(46,212,122,.1);border:1px solid rgba(46,212,122,.3);color:#2ed47a;border-radius:8px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;">Export Excel</button>
-        <button onclick="exportDetailImage()" style="background:rgba(46,232,255,.1);border:1px solid rgba(46,232,255,.3);color:#2ee8ff;border-radius:8px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;">Export Image</button>`;
-    body.appendChild(toolbar);
-
-    // Populate autofill from userid dropdown already loaded
-    const uidSelect = document.getElementById('userid-dropdown');
-    if (uidSelect) {
-        const dl = document.getElementById('emp-detail-autofill');
-        if (dl) {
-            const opts = Array.from(uidSelect.options).map(o => o.value).filter(v => v && v !== 'All');
-            dl.innerHTML = opts.map(u => `<option value="${u}">`).join('');
-        }
-    }
-
-    renderDetailRows(body, columns, rows);
-
-    // Search button triggers API reload with user_id
-    let detailSearchTimer;
-    const searchInput = document.getElementById('emp-detail-search');
-    const searchBtn = document.getElementById('emp-detail-search-btn');
-
-    function doDetailSearch() {
-        const q = searchInput.value.trim();
-        const params = buildParams();
-        if (q) params.set('user_id', q);
-        fetch(`/api/widget-data/${DETAIL_TABLE_WIDGET_ID}?${params.toString()}`)
-            .then(r => r.json())
-            .then(({ columns, rows }) => {
-                const oldWrap = document.getElementById('emp-detail-wrap');
-                if (oldWrap) oldWrap.remove();
-                renderDetailRows(body, columns, rows);
-            });
-    }
-
-    if (searchBtn) searchBtn.addEventListener('click', doDetailSearch);
-    if (searchInput) {
-        searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doDetailSearch(); });
-        searchInput.addEventListener('input', () => {
-            clearTimeout(detailSearchTimer);
-            detailSearchTimer = setTimeout(doDetailSearch, 600);
-        });
-    }
-}
-
-function renderDetailRows(container, columns, rows) {
-    const dateCol = columns.find(c => /date/i.test(c));
-    if (dateCol) {
-        rows.sort((a, b) => new Date(a[dateCol] || '') - new Date(b[dateCol] || ''));
-    }
-
-    const wrap = document.createElement('div');
-    wrap.id = 'emp-detail-wrap';
-    wrap.className = 'table-responsive';
-    wrap.style.cssText = 'max-height:500px;overflow:auto;scrollbar-width:thin;scrollbar-color:#3a7bd5 #060e24;';
-    let html = '<table class="table table-sm widget-table" id="emp-detail-table">';
-    html += '<thead><tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
-    rows.forEach(row => {
-        html += '<tr>' + columns.map(c => `<td>${renderCellValue(row[c])}</td>`).join('') + '</tr>';
-    });
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-    container.appendChild(wrap);
-}
-
-function exportDetailExcel() {
-    const table = document.getElementById('emp-detail-table');
-    if (!table) return;
-    let csv = '';
-    table.querySelectorAll('tr').forEach(tr => {
-        if (tr.style.display === 'none') return;
-        const cells = [];
-        tr.querySelectorAll('th,td').forEach(td => cells.push('"' + td.textContent.replace(/"/g,'""') + '"'));
-        csv += cells.join(',') + '\n';
-    });
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.download = 'Employee_Attendance_Detail.csv';
-    link.href = URL.createObjectURL(blob);
-    link.click();
-}
-
-function exportDetailImage() {
-    const wrap = document.getElementById('emp-detail-wrap');
-    if (!wrap || !window.html2canvas) return;
-    const clone = wrap.cloneNode(true);
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.maxHeight = 'none';
-    clone.querySelectorAll('tbody tr').forEach(tr => { if (tr.style.display === 'none') tr.remove(); });
-    document.body.appendChild(clone);
-    html2canvas(clone, { backgroundColor: '#1a1a2e', scale: 2 }).then(canvas => {
-        clone.remove();
-        const link = document.createElement('a');
-        link.download = 'Employee_Attendance_Detail.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    });
-}
 
 function renderCanvas(body, widgetId) {
     body.innerHTML = '';
@@ -822,7 +693,6 @@ function renderWidgetBody(widget, columns, rows) {
     switch (widget.chart_type) {
         case 'kpi':   renderKpi(body, columns, rows); break;
         case 'table': renderTable(body, columns, rows); break;
-        case 'detail_table': renderDetailTablePlaceholder(body); break;
         case 'top10_sec':   renderTop10Sec(body, columns, rows); break;
         case 'bar':
             renderBar(body, widget.id, columns, rows);
@@ -897,7 +767,7 @@ async function loadAllWidgets() {
         const allData = await res.json();
 
         currentWidgets.forEach(w => {
-            if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID || w.id === DETAIL_TABLE_WIDGET_ID) return;
+            if (w.id === EMPLOYEE_WIDGET_ID || w.id === PROFILE_WIDGET_ID) return;
             const payload = allData[w.id] || allData[String(w.id)];
             if (payload) renderWidgetBody(w, payload.columns, payload.rows);
         });
@@ -907,7 +777,7 @@ async function loadAllWidgets() {
         }
     } catch (e) {
         // Fallback: load each widget individually
-        const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID && w.id !== DETAIL_TABLE_WIDGET_ID);
+        const toLoad = currentWidgets.filter(w => w.id !== EMPLOYEE_WIDGET_ID && w.id !== PROFILE_WIDGET_ID);
         await Promise.all(toLoad.map(w => loadWidget(w)));
         loadMarketSummary();
     }
@@ -915,7 +785,7 @@ async function loadAllWidgets() {
 
 function widgetColumnClass(chartType) {
     if (chartType === 'kpi')   return 'col-md-3';
-    if (chartType === 'pivot' || chartType === 'pivot_region' || chartType === 'pivot_timing' || chartType === 'pivot_salary' || chartType === 'detail_table' || chartType === 'top10_sec') return 'col-12';
+    if (chartType === 'pivot' || chartType === 'pivot_region' || chartType === 'pivot_timing' || chartType === 'pivot_salary' || chartType === 'top10_sec') return 'col-12';
     if (chartType === 'table') return 'col-md-6';
     return 'col-md-6';
 }
@@ -1147,7 +1017,6 @@ async function clearAllFilters() {
 }
 
 const EMPLOYEE_WIDGET_ID = 8;
-const DETAIL_TABLE_WIDGET_ID = 16;
 const TOP10_SEC_WIDGET_ID = 17;
 
 function getEnteredUserId() {
