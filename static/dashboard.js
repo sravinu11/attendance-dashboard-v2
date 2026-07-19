@@ -1056,6 +1056,7 @@ async function loadDashboard() {
     currentWidgets = await (await fetch('/api/widgets')).json();
 
     currentWidgets.forEach(widget => {
+        if (/employee.attendance.detail/i.test(widget.widget_name)) return;
         const isEmployeeWidget = widget.id === EMPLOYEE_WIDGET_ID || widget.id === PROFILE_WIDGET_ID;
         const isTopSec = widget.id === TOP10_SEC_WIDGET_ID;
 
